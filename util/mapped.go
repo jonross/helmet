@@ -34,7 +34,7 @@ import (
 // low-level data access like GetUInt32.  This is a helpful abstraction even
 // given Go slices because unfortunately, UNIX cannot map > 2^31-1 bytes at
 // a time, and we need to abstract away the case where code is reading data
-// and suddenly finds a value that runs over the end of a section.  Awkward.
+// and suddenly finds a value that runs over the end of a section.
 //
 type MappedFile struct {
     filename string
@@ -50,12 +50,19 @@ type MappedFile struct {
 // This represents a single mapped section on a MappedFile.
 //
 type MappedSection struct {
-    mf *MappedFile
+    // Underlying MappedFile
+    mappedFile *MappedFile
     // As returned by syscall.Mmap
     base []byte
+    // Size of mapped section
+    size uint32
+    // Offset of base within the file
+    globalOffset uint64
     // Where are we now
-    offset int32
+    localOffset uint32
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////
 
 // Create a MappedFile.
 //
@@ -63,27 +70,17 @@ func MapFile(filename string) (mf *MappedFile, err error) {
     mf = &MappedFile{filename: filename, sections: [][]byte{}}
     mf.file, err = os.Open(filename)
     if err != nil {
+        mf.file.Close()
         return nil, err
     }
     info, err := mf.file.Stat()
     if err != nil {
+        mf.file.Close()
         return nil, err
     }
     mf.size = uint64(info.Size())
     mf.lock = &sync.Mutex{}
     return
-}
-
-// Unmap all mapped sections from a mapped file.  Does not close the file.
-//
-func (mf *MappedFile) UnmapAll() {
-    for _, bytes := range mf.sections {
-        err := syscall.Munmap(bytes)
-        if err != nil {
-            log.Fatalf("Failed to unmap memory at %x\n", bytes)
-        }
-    }
-    mf.sections = [][]byte{}
 }
 
 // Map the largest possible section starting at a given offset.  Normally this is called 
@@ -101,10 +98,75 @@ func (mf *MappedFile) MapAt(offset uint64) *MappedSection {
     }
     log.Printf("Mapping %s %d bytes at %d\n", mf.filename, length, offset)
     mf.addSection(bytes)
-    return &MappedSection{mf, bytes, 0}
+    return &MappedSection{mf, bytes, uint32(length), offset, 0}
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+// Unmap all mapped sections from a mapped file.  Does not close the file.
+//
+func (mf *MappedFile) UnmapAll() {
+    for _, bytes := range mf.sections {
+        err := syscall.Munmap(bytes)
+        if err != nil {
+            log.Fatalf("Failed to unmap memory at %x\n", bytes)
+        }
+    }
+    mf.sections = [][]byte{}
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
+// Require at least count bytes in the current mapped section.  If not available, remap
+// it from the current location.  Note only checks insufficient bytes in the section, not
+// the file itself, so that a caller can make a conservative overestimate rather than
+// calling Demand() more frequently with smaller amounts.
+//
+func (ms *MappedSection) Demand(count uint32) *MappedSection {
+    remain := ms.size - ms.localOffset
+    if (remain < count) {
+        return ms.mappedFile.MapAt(ms.globalOffset + uint64(ms.localOffset))
+    }
+    return ms
+}
+
+// Read a signed 32-bit integer at the current offset and advance the offset 4 bytes.
+//
+func (ms *MappedSection) GetInt32() int32 {
+    buf := ms.base[ms.localOffset:]
+    bits := uint32(buf[0]) << 24 |
+            uint32(buf[1]) << 16 |
+            uint32(buf[2]) <<  8 |
+            uint32(buf[3])
+    ms.localOffset += 4
+    return int32(bits)
+}
+
+// Read an unsigned 32-bit integer at the current offset and advance the offset 4 bytes.
+//
+func (ms *MappedSection) GetUInt32() uint32 {
+    buf := ms.base[ms.localOffset:]
+    bits := uint32(buf[0]) << 24 |
+            uint32(buf[1]) << 16 |
+            uint32(buf[2]) <<  8 |
+            uint32(buf[3])
+    ms.localOffset += 4
+    return bits
+}
+
+// Read an unsigned 64-bit integer at the current offset and advance the offset 8 bytes.
+//
+func (ms *MappedSection) GetUInt64() uint64 {
+    buf := ms.base[ms.localOffset:]
+    bits := uint64(buf[0]) << 54 |
+            uint64(buf[1]) << 48 |
+            uint64(buf[2]) << 40 |
+            uint64(buf[3]) << 32 |
+            uint64(buf[4]) << 24 |
+            uint64(buf[5]) << 16 |
+            uint64(buf[6]) <<  8 |
+            uint64(buf[7])
+    ms.localOffset += 8
+    return bits
+}
 
 // Add a new section to the list of mapped sections.  This uses the lock field because multiple
 // goroutines may be independently mapping different locations.

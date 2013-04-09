@@ -164,7 +164,7 @@ func (heap *Heap) read(in []byte) {
 
             case 0x0c, 0x1c: // HEAP_DUMP, HEAP_DUMP_SEGMENT
                 log.Printf("Heap dump or segment of %d MB", length / 1048576)
-                heap.readSegment(in[headerSize:headerSize+length])
+                // heap.readSegment(in[headerSize:headerSize+length])
 
             case 0x03: // UNLOAD_CLASS
                 break
