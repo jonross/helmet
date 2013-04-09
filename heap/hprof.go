@@ -56,9 +56,10 @@ type JType struct {
 }
 
 type Heap struct {
+    // Yes that
     filename string
-    file *os.File
-    bytes []byte
+    // And that
+    mappedFile *MappedFile
     // Size of a native ID on the heap, 4 or 8
     idSize uint32
     // true if idSize is 8
@@ -81,38 +82,26 @@ type Heap struct {
 func ReadHeap(filename string) (heap *Heap, err error) {
 
     heap = &Heap{filename: filename}
-
-    heap.file, err = os.Open(heap.filename)
+    heap.mappedFile, err = MapFile(filename)
     if err != nil {
         return nil, err
     }
-    defer heap.file.Close()
+    defer heap.mappedFile.Close()
 
-    heap.bytes, err = util.MMap(heap.file, 0)
-    if err != nil {
-        return nil, err
-    }
-    defer util.MUnmap(heap.bytes)
-
-    heap.read(heap.bytes)
-    return
-}
-
-func (heap *Heap) read(in []byte) {
-
-    version := string(in[:19])
+    in := heap.mappedFile.mapAt(0)
+    version := string(in.GetRaw(19))
     if version != "JAVA PROFILE 1.0.1\x00" && version != "JAVA PROFILE 1.0.2\x00" {
         log.Fatalf("Unknown heap version %s\n", version)
     }
 
-    heap.idSize = util.GetUInt32(in[19:23])
+    heap.idSize = in.GetUInt32()
     if heap.idSize != 4 && heap.idSize != 8 {
         log.Fatalf("Unknown reference size %d\n", heap.idSize)
     }
     heap.longIds = heap.idSize == 8
 
     // skip timestamp
-    in = in[31:]
+    in.Skip(8)
 
     heap.strings = make(map[HeapId]string)
     heap.classNames = make(map[HeapId]HeapId)
@@ -137,28 +126,25 @@ func (heap *Heap) read(in []byte) {
         &JType{"[I", false, 4, 0},
         &JType{"[J", false, 8, 0} }
 
-    for len(in) > 0 {
+    for in.Demand(9) != nil {
 
-        tag := in[0]
-        // Skip timestamp
-        length := util.GetUInt32(in[headerSize-4:headerSize])
+        tag := in.GetByte()
+        in.Skip(4) // Skip timestamp
+        length := in.GetUInt32()
 
         // A function table would be more efficient but there aren't
         // that many top-level records compared to instance records.
 
         switch tag {
             case 0x01: // UTF8
-                xin := in[headerSize:headerSize+length]
-                hid := heap.readId(xin)
-                heap.strings[hid] = string(xin[heap.idSize:])
+                hid := heap.readId(in)
+                heap.strings[hid] = in.GetString(length-9-heap.idSize)
 
             case 0x02: // LOAD_CLASS
-                // skip classSerial
-                xin := in[headerSize+4:headerSize+length]
-                classHid := heap.readId(xin)
-                // skip stackSerial
-                xin = xin[heap.idSize+4:]
-                nameHid := heap.readId(xin)
+                in.Skip(4) // skip classSerial
+                classHid := heap.readId(in)
+                in.Skip(4) // skip stackSerial
+                nameHid := heap.readId(in)
                 heap.classNames[classHid] = nameHid
                 // log.Printf("%x -> %x -> %s\n", classHid, nameHid, heap.strings[nameHid])
 
@@ -191,6 +177,8 @@ func (heap *Heap) read(in []byte) {
 
         in = in[headerSize+length:]
     }
+
+    return
 }
 
 // Handle a HEAP_DUMP or HEAP_DUMP_SEGMENT record

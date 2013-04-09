@@ -113,19 +113,39 @@ func (mf *MappedFile) UnmapAll() {
     mf.sections = [][]byte{}
 }
 
+// Does UnmapAll and closes the file.
+//
+func (mf *MappedFile) Close() {
+    mf.UnmapAll()
+    mf.file.Close()
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////
 
 // Require at least count bytes in the current mapped section.  If not available, remap
 // it from the current location.  Note only checks insufficient bytes in the section, not
 // the file itself, so that a caller can make a conservative overestimate rather than
-// calling Demand() more frequently with smaller amounts.
+// calling Demand() more frequently with smaller amounts.  Returns nil if no more data
+// available.
 //
 func (ms *MappedSection) Demand(count uint32) *MappedSection {
     remain := ms.size - ms.localOffset
     if (remain < count) {
-        return ms.mappedFile.MapAt(ms.globalOffset + uint64(ms.localOffset))
+        newOffset := ms.globalOffset + uint64(ms.localOffset)
+        if newOffset == ms.mappedFile.size {
+            return nil
+        }
+        return ms.mappedFile.MapAt(newOffset)
     }
     return ms
+}
+
+// Read a byte at the current offset and advance the offset 1 byte.
+//
+func (ms *MappedSection) GetByte() byte {
+    ret := ms.base[ms.localOffset]
+    ms.localOffset++
+    return ret
 }
 
 // Read a signed 32-bit integer at the current offset and advance the offset 4 bytes.
@@ -166,6 +186,28 @@ func (ms *MappedSection) GetUInt64() uint64 {
             uint64(buf[7])
     ms.localOffset += 8
     return bits
+}
+
+// Return a raw slice at the current offset and advance the offset by the given amount.
+//
+func (ms *MappedSection) GetRaw(count uint32) []byte {
+    buf := ms.base[ms:localOffset:ms.localOffset+count]
+    ms.localOffset += count
+    return buf
+}
+
+// Same as GetRaw() but convert it to a string.
+//
+func (ms *MappedSection) GetString(count uint32) string {
+    buf := ms.base[ms:localOffset:ms.localOffset+count]
+    ms.localOffset += count
+    return string(buf)
+}
+
+// Skip over some of the section.
+//
+func (ms *MappedSection) Skip(count uint32) {
+    ms.localOffset += count
 }
 
 // Add a new section to the list of mapped sections.  This uses the lock field because multiple
