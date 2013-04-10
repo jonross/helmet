@@ -151,8 +151,7 @@ func ReadHeap(filename string) (heap *Heap, err error) {
 
             case 0x0c, 0x1c: // HEAP_DUMP, HEAP_DUMP_SEGMENT
                 log.Printf("Heap dump or segment of %d MB", length / 1048576)
-                in.Skip(length)
-                // heap.readSegment(in, length - headerSize)
+                heap.readSegment(in, length)
 
             case 0x03: // UNLOAD_CLASS
                 fallthrough
@@ -174,7 +173,7 @@ func ReadHeap(filename string) (heap *Heap, err error) {
                 in.Skip(length)
 
             default:
-                log.Fatalf("Unknown HPROF record type %d at offset %d\n", tag, in.Offset()-uint64(headerSize))
+                log.Fatalf("Unknown HPROF record type %d at %d\n", tag, in.Offset() - uint64(headerSize))
         }
     }
 
@@ -185,6 +184,7 @@ func (heap *Heap) readSegment(in *util.MappedSection, length uint32) {
     end := in.Offset() + uint64(length)
     for in.Offset() < end {
         tag := in.GetByte()
+        // log.Printf("tag %d\n", tag)
         switch tag {
             case 0x21: // INSTANCE_DUMP
                 heap.readInstance(in)
@@ -213,7 +213,7 @@ func (heap *Heap) readSegment(in *util.MappedSection, length uint32) {
             case 0xff: // ROOT_UNKNOWN
                 heap.readGCRoot(in, "unknown root", 0)
             default:
-                log.Fatalf("Unknown HPROF record type: %d\n", tag)
+                log.Fatalf("Unknown HPROF record type %d at %d\n", tag, in.Offset() - 1)
         }
     }
 }
@@ -224,18 +224,89 @@ func (heap *Heap) readSegment(in *util.MappedSection, length uint32) {
 func (heap *Heap) readGCRoot(in *util.MappedSection, kind string, skip uint32) {
     hid := heap.readId(in)
     heap.gcRoots = append(heap.gcRoots, hid)
+    in.Skip(skip)
 }
 
 func (heap *Heap) readInstance(in *util.MappedSection) {
-    log.Fatal("readInstance not defined\n")
+
+    // TODO demand
+
+    heap.readId(in) // hid
+    in.Skip(4) // stack serial
+    heap.readId(in) // class hid
+    length := in.GetUInt32()
+    in.Skip(length)
 }
 
 func (heap *Heap) readArray(in *util.MappedSection, isObjects bool) {
-    log.Fatal("readArray not defined")
+
+    // TODO demand
+
+    heap.readId(in) // hid
+    in.Skip(4) // stack serial
+    count := in.GetUInt32()
+
+    if isObjects {
+        heap.readId(in) // array class hid
+        in.Skip(count * heap.idSize)
+    } else {
+        jtype := heap.readJType(in)
+        in.Skip(count * jtype.size)
+    }
 }
 
 func (heap *Heap) readClassDump(in *util.MappedSection) {
-    log.Fatal("readClassDump not defined")
+
+    in.Demand(7 * heap.idSize + 8)
+    heap.readId(in) // hid
+    in.Skip(4) // stack serial
+    heap.readId(in) // superHid
+    in.Skip(5 * heap.idSize) // skip class loader ID, signer ID, protection domain ID, 2 reserved
+    in.Skip(4) // instance size
+
+    // Skip over constant pool
+
+    in.Demand(2)
+    numConstants := in.GetUInt16()
+    in.Demand(11 * uint32(numConstants))
+
+    for i := 0; i < int(numConstants); i++ {
+        in.Skip(2)
+        jtype := heap.readJType(in)
+        in.Skip(jtype.size)
+    }
+
+    // Static fields
+
+    in.Demand(2)
+    numStatics := in.GetUInt16()
+    in.Demand(11 * uint32(numStatics))
+
+    for i := 0; i < int(numStatics); i++ {
+        in.Skip(heap.idSize) // field name ID
+        jtype := heap.readJType(in)
+        if jtype.isObj {
+            heap.readId(in)
+            // if (toHid != 0)
+            //     heap.addStaticReference(classId, toId)
+        } else {
+            in.Skip(jtype.size)
+        }
+    }
+
+    // Instance fields
+
+    in.Demand(2)
+    numFields := in.GetUInt16()
+    fieldNameIds := make([]HeapId, numFields, numFields)
+    fieldTypes := make([]*JType, numFields, numFields)
+
+    for i := 0; i < int(numFields); i++ {
+        fieldNameIds[i] = heap.readId(in)
+        fieldTypes[i] = heap.readJType(in)
+    }
+
+    // heap.addClassDef(classId, superclassId, fieldInfo, fieldNameIds);
 }
 
 // Read a native ID from heap data.
@@ -246,4 +317,19 @@ func (heap *Heap) readId(in *util.MappedSection) HeapId {
     }
     return HeapId(in.GetUInt32())
 }
+
+// Read a "Basic Type" ID from heap data and return the JType
+//
+func (heap *Heap) readJType(in *util.MappedSection) *JType {
+    tag := int(in.GetByte())
+    if tag < 0 || tag >= len(heap.jtypes) {
+        log.Fatalf("Unknown basic type %d at %d\n", tag, in.Offset() - 1)
+    }
+    jtype := heap.jtypes[tag]
+    if jtype == nil {
+        log.Fatalf("Unknown basic type %d at %d\n", tag, in.Offset() - 1)
+    }
+    return jtype
+}
+
 

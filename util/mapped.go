@@ -146,6 +146,16 @@ func (ms *MappedSection) GetByte() byte {
     return ret
 }
 
+// Read an unsigned 16-bit integer at the current offset and advance the offset 2 bytes.
+//
+func (ms *MappedSection) GetUInt16() uint16 {
+    buf := ms.base[ms.localOffset:]
+    bits := uint16(buf[0]) << 8 |
+            uint16(buf[1]) 
+    ms.localOffset += 2
+    return bits
+}
+
 // Read a signed 32-bit integer at the current offset and advance the offset 4 bytes.
 //
 func (ms *MappedSection) GetInt32() int32 {
