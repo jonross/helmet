@@ -26,7 +26,6 @@ package heap
 
 import (
     "log"
-    "os"
     "github.com/jonross/helmet/util"
 )
 
@@ -59,7 +58,7 @@ type Heap struct {
     // Yes that
     filename string
     // And that
-    mappedFile *MappedFile
+    mappedFile *util.MappedFile
     // Size of a native ID on the heap, 4 or 8
     idSize uint32
     // true if idSize is 8
@@ -82,13 +81,13 @@ type Heap struct {
 func ReadHeap(filename string) (heap *Heap, err error) {
 
     heap = &Heap{filename: filename}
-    heap.mappedFile, err = MapFile(filename)
+    heap.mappedFile, err = util.MapFile(filename)
     if err != nil {
         return nil, err
     }
     defer heap.mappedFile.Close()
 
-    in := heap.mappedFile.mapAt(0)
+    in := heap.mappedFile.MapAt(0)
     version := string(in.GetRaw(19))
     if version != "JAVA PROFILE 1.0.1\x00" && version != "JAVA PROFILE 1.0.2\x00" {
         log.Fatalf("Unknown heap version %s\n", version)
@@ -126,11 +125,12 @@ func ReadHeap(filename string) (heap *Heap, err error) {
         &JType{"[I", false, 4, 0},
         &JType{"[J", false, 8, 0} }
 
-    for in.Demand(9) != nil {
+    for in.Demand(headerSize) != nil {
 
         tag := in.GetByte()
         in.Skip(4) // Skip timestamp
         length := in.GetUInt32()
+        // log.Printf("Record type %d len %d at %d\n", tag, length, in.Offset() - uint64(headerSize))
 
         // A function table would be more efficient but there aren't
         // that many top-level records compared to instance records.
@@ -138,7 +138,8 @@ func ReadHeap(filename string) (heap *Heap, err error) {
         switch tag {
             case 0x01: // UTF8
                 hid := heap.readId(in)
-                heap.strings[hid] = in.GetString(length-9-heap.idSize)
+                heap.strings[hid] = in.GetString(length - heap.idSize)
+                // log.Printf("%x -> %s\n", hid, heap.strings[hid])
 
             case 0x02: // LOAD_CLASS
                 in.Skip(4) // skip classSerial
@@ -150,69 +151,67 @@ func ReadHeap(filename string) (heap *Heap, err error) {
 
             case 0x0c, 0x1c: // HEAP_DUMP, HEAP_DUMP_SEGMENT
                 log.Printf("Heap dump or segment of %d MB", length / 1048576)
-                // heap.readSegment(in[headerSize:headerSize+length])
+                in.Skip(length)
+                // heap.readSegment(in, length - headerSize)
 
             case 0x03: // UNLOAD_CLASS
-                break
+                fallthrough
             case 0x04: // STACK_FRAME
-                break
+                fallthrough
             case 0x05: // STACK_TRACE
-                break
+                fallthrough
             case 0x06: // ALLOC_SITES
-                break
+                fallthrough
             case 0x07: // HEAP_SUMMARY
-                break
+                fallthrough
             case 0x0a: // START_THREAD
-                break
+                fallthrough
             case 0x0b: // END_THREAD
-                break
+                fallthrough
             case 0x0e: // CONTROL_SETTINGS
-                break
+                fallthrough
             case 0x2c: // HEAP_DUMP_END
-                break
+                in.Skip(length)
 
             default:
-                log.Fatalf("Unknown HPROF record type: %d\n", tag)
+                log.Fatalf("Unknown HPROF record type %d at offset %d\n", tag, in.Offset()-uint64(headerSize))
         }
-
-        in = in[headerSize+length:]
     }
 
     return
 }
 
-// Handle a HEAP_DUMP or HEAP_DUMP_SEGMENT record
-//
-func (heap *Heap) readSegment(in []byte) {
-    for len(in) > 0 {
-        tag := in[0]
+func (heap *Heap) readSegment(in *util.MappedSection, length uint32) {
+    end := in.Offset() + uint64(length)
+    for in.Offset() < end {
+        tag := in.GetByte()
         switch tag {
             case 0x21: // INSTANCE_DUMP
-                in = heap.readInstance(in)
+                heap.readInstance(in)
             case 0x22: // OBJECT_ARRAY
-                in = heap.readArray(in, true)
+                heap.readArray(in, true)
             case 0x23: // PRIMITIVE_ARRAY
-                in = heap.readArray(in, false)
+                heap.readArray(in, false)
             case 0x20: // CLASS_DUMP
-                in = heap.readClassDump(in)
+                heap.readClassDump(in)
             case 0x01: // ROOT_JNI_GLOBAL
-                in = heap.readGCRoot(in, "JNI global", heap.idSize)
+                heap.readGCRoot(in, "JNI global", heap.idSize)
             case 0x02: // ROOT_JNI_LOCAL
-                in = heap.readGCRoot(in, "JNI local", 8)
+                heap.readGCRoot(in, "JNI local", 8)
             case 0x03: // ROOT_JAVA_FRAME
-                in = heap.readGCRoot(in, "java frame", 8)
+                heap.readGCRoot(in, "java frame", 8)
             case 0x04: // ROOT_NATIVE_STACK
-                in = heap.readGCRoot(in, "native stack", 4)
+                heap.readGCRoot(in, "native stack", 4)
             case 0x05: // ROOT_STICKY_CLASS
-                in = heap.readGCRoot(in, "sticky class", 0)
+                heap.readGCRoot(in, "sticky class", 0)
             case 0x06: // ROOT_THREAD_BLOCK
-                in = heap.readGCRoot(in, "thread block", 4)
+                heap.readGCRoot(in, "thread block", 4)
             case 0x07: // ROOT_MONITOR_USED
-                in = heap.readGCRoot(in, "monitor used", 0)
+                heap.readGCRoot(in, "monitor used", 0)
             case 0x08: // ROOT_THREAD_OBJECT
-                in = heap.readGCRoot(in, "thread object", 8)
+                heap.readGCRoot(in, "thread object", 8)
             case 0xff: // ROOT_UNKNOWN
-                in = heap.readGCRoot(in, "unknown root", 0)
+                heap.readGCRoot(in, "unknown root", 0)
             default:
                 log.Fatalf("Unknown HPROF record type: %d\n", tag)
         }
@@ -222,33 +221,29 @@ func (heap *Heap) readSegment(in []byte) {
 // Read a GC root.  This has the HID at the start followed by some amount
 // of per-root data that we don't use.
 //
-func (heap *Heap) readGCRoot(in []byte, kind string, skip uint32) []byte {
+func (heap *Heap) readGCRoot(in *util.MappedSection, kind string, skip uint32) {
     hid := heap.readId(in)
     heap.gcRoots = append(heap.gcRoots, hid)
-    return in[heap.idSize + skip:]
 }
 
-func (heap *Heap) readInstance(in []byte) []byte {
+func (heap *Heap) readInstance(in *util.MappedSection) {
     log.Fatal("readInstance not defined\n")
-    return in
 }
 
-func (heap *Heap) readArray(in []byte, isObjects bool) []byte {
+func (heap *Heap) readArray(in *util.MappedSection, isObjects bool) {
     log.Fatal("readArray not defined")
-    return in
 }
 
-func (heap *Heap) readClassDump(in []byte) []byte {
+func (heap *Heap) readClassDump(in *util.MappedSection) {
     log.Fatal("readClassDump not defined")
-    return in
 }
 
 // Read a native ID from heap data.
 //
-func (heap *Heap) readId(in []byte) HeapId {
+func (heap *Heap) readId(in *util.MappedSection) HeapId {
     if (heap.longIds) {
-        return HeapId(util.GetUInt64(in))
+        return HeapId(in.GetUInt64())
     }
-    return HeapId(util.GetUInt32(in))
+    return HeapId(in.GetUInt32())
 }
 

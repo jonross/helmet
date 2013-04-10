@@ -26,7 +26,6 @@ import (
     "log"
     "math"
     "os"
-    "sync"
     "syscall"
 )
 
@@ -43,8 +42,6 @@ type MappedFile struct {
     size uint64
     // what have we mapped so far
     sections [][]byte
-    // for concurrent modification
-    lock *sync.Mutex
 }
 
 // This represents a single mapped section on a MappedFile.
@@ -57,8 +54,8 @@ type MappedSection struct {
     // Size of mapped section
     size uint32
     // Offset of base within the file
-    globalOffset uint64
-    // Where are we now
+    baseOffset uint64
+    // Offset of current location from baseOffset
     localOffset uint32
 }
 
@@ -79,7 +76,6 @@ func MapFile(filename string) (mf *MappedFile, err error) {
         return nil, err
     }
     mf.size = uint64(info.Size())
-    mf.lock = &sync.Mutex{}
     return
 }
 
@@ -97,26 +93,12 @@ func (mf *MappedFile) MapAt(offset uint64) *MappedSection {
         log.Fatalf("Can't map %s %d bytes at %d: %s\n", mf.filename, length, offset, err)
     }
     log.Printf("Mapping %s %d bytes at %d\n", mf.filename, length, offset)
-    mf.addSection(bytes)
     return &MappedSection{mf, bytes, uint32(length), offset, 0}
 }
 
-// Unmap all mapped sections from a mapped file.  Does not close the file.
-//
-func (mf *MappedFile) UnmapAll() {
-    for _, bytes := range mf.sections {
-        err := syscall.Munmap(bytes)
-        if err != nil {
-            log.Fatalf("Failed to unmap memory at %x\n", bytes)
-        }
-    }
-    mf.sections = [][]byte{}
-}
-
-// Does UnmapAll and closes the file.
+// Closes the file.  Does not explicitly unmap MappedSections.
 //
 func (mf *MappedFile) Close() {
-    mf.UnmapAll()
     mf.file.Close()
 }
 
@@ -131,13 +113,29 @@ func (mf *MappedFile) Close() {
 func (ms *MappedSection) Demand(count uint32) *MappedSection {
     remain := ms.size - ms.localOffset
     if (remain < count) {
-        newOffset := ms.globalOffset + uint64(ms.localOffset)
+        newOffset := ms.baseOffset + uint64(ms.localOffset)
         if newOffset == ms.mappedFile.size {
             return nil
         }
+        ms.Unmap()
         return ms.mappedFile.MapAt(newOffset)
     }
     return ms
+}
+
+// Essentially "forks" a mapped section; this is the same as calling MappedFile.MapAt
+//
+func (ms *MappedSection) MapAt(offset uint64) *MappedSection {
+    return ms.mappedFile.MapAt(offset)
+}
+
+// Unmap the section.
+//
+func (ms *MappedSection) Unmap() {
+    err := syscall.Munmap(ms.base)
+    if err != nil {
+        log.Fatalf("Failed to unmap %s at %d\n", ms.mappedFile.filename, ms.baseOffset)
+    }
 }
 
 // Read a byte at the current offset and advance the offset 1 byte.
@@ -191,7 +189,7 @@ func (ms *MappedSection) GetUInt64() uint64 {
 // Return a raw slice at the current offset and advance the offset by the given amount.
 //
 func (ms *MappedSection) GetRaw(count uint32) []byte {
-    buf := ms.base[ms:localOffset:ms.localOffset+count]
+    buf := ms.base[ms.localOffset:ms.localOffset+count]
     ms.localOffset += count
     return buf
 }
@@ -199,7 +197,7 @@ func (ms *MappedSection) GetRaw(count uint32) []byte {
 // Same as GetRaw() but convert it to a string.
 //
 func (ms *MappedSection) GetString(count uint32) string {
-    buf := ms.base[ms:localOffset:ms.localOffset+count]
+    buf := ms.base[ms.localOffset:ms.localOffset+count]
     ms.localOffset += count
     return string(buf)
 }
@@ -210,12 +208,9 @@ func (ms *MappedSection) Skip(count uint32) {
     ms.localOffset += count
 }
 
-// Add a new section to the list of mapped sections.  This uses the lock field because multiple
-// goroutines may be independently mapping different locations.
+// Return the global file offset
 //
-func (mf *MappedFile) addSection(bytes []byte) {
-    mf.lock.Lock()
-    defer mf.lock.Unlock()
-    mf.sections = append(mf.sections, bytes);
+func (ms *MappedSection) Offset() uint64 {
+    return ms.baseOffset + uint64(ms.localOffset)
 }
 
