@@ -20,8 +20,6 @@
     SOFTWARE.
 */
 
-// This package understands HPROF binary dump format.
-//
 package heap
 
 import (
@@ -29,30 +27,13 @@ import (
     "github.com/jonross/helmet/util"
 )
 
-// An ID read from the heap dump
+// A native ID read from the heap dump
 //
 type HeapId uint64
-
-// 1-based, assigned as we read class definitions from the dump
-//
-type ClassId uint32
 
 // 1-based, assigned as we read instances from the dump
 //
 type ObjectId uint32
-
-// Information about java value types
-//
-type JType struct {
-    // JVM short class name for an array of this type
-    arrayClass string
-    // true if this is an object type, not a primitive type
-    isObj bool
-    // size in bytes
-    size uint32
-    // assigned when found in heap
-    hid HeapId
-}
 
 type Heap struct {
     // Yes that
@@ -69,15 +50,30 @@ type Heap struct {
     // LOAD_CLASS and ... are different records.
     classNames map[HeapId]HeapId
     // how many class IDs have we assigned
-    numClassIds uint32
+    NumClasses uint32
     // how many object IDs have we assigned
-    numObjectIds uint32
+    NumObjects uint32
     // heap IDs of GC roots
     gcRoots []HeapId
     // maps java value type tags to JType objects
     jtypes []*JType
+    // class defs indexed by cid
+    classes []*ClassDef
+    // same, indexed by demangled class name
+    classesByName map[string]*ClassDef
+    // same, by native heap id
+    classesByHid map[HeapId]*ClassDef
+    // object cids, indexed by synthetic object id
+    objectCids []ClassId
+    // initial list of referrers
+    refsFrom []ObjectId
+    // initial list of referees
+    refsTo []HeapId
 }
 
+// Complete heap reader in one call.  Most of the error conditions (like
+// unresolvable classes) cause panics BTW.
+//
 func ReadHeap(filename string) (heap *Heap, err error) {
 
     heap = &Heap{filename: filename}
@@ -87,9 +83,13 @@ func ReadHeap(filename string) (heap *Heap, err error) {
     }
     defer heap.mappedFile.Close()
 
+    // Verify this is a real HPROF file & determine native ID size.
+
     in := heap.mappedFile.MapAt(0)
-    version := string(in.GetRaw(19))
-    if version != "JAVA PROFILE 1.0.1\x00" && version != "JAVA PROFILE 1.0.2\x00" {
+    version := string(in.GetRaw(18))
+    in.Skip(1) // trailing NUL
+
+    if version != "JAVA PROFILE 1.0.1" && version != "JAVA PROFILE 1.0.2" {
         log.Fatalf("Unknown heap version %s\n", version)
     }
 
@@ -98,14 +98,27 @@ func ReadHeap(filename string) (heap *Heap, err error) {
         log.Fatalf("Unknown reference size %d\n", heap.idSize)
     }
     heap.longIds = heap.idSize == 8
+    in.Skip(8) // skip timestamp
 
-    // skip timestamp
-    in.Skip(8)
+    // Set up major data structures
+    // TODO: presize based on file size
 
     heap.strings = make(map[HeapId]string)
     heap.classNames = make(map[HeapId]HeapId)
     heap.gcRoots = []HeapId{}
     headerSize := uint32(9)
+
+    heap.NumClasses = 0
+    heap.classes = []*ClassDef{nil} // leave room for entry [0]
+
+    heap.classesByName = make(map[string]*ClassDef)
+    heap.classesByHid = make(map[HeapId]*ClassDef)
+
+    heap.NumObjects = 0
+    heap.objectCids = []ClassId{ClassId(0)} // leave room for entry [0]
+
+    heap.refsFrom = []ObjectId{}
+    heap.refsTo = []HeapId{}
 
     // JType descriptors are indexed by the "basic type" tag
     // found in a CLASS_DUMP or PRIMITIVE_ARRAY_DUMP
@@ -113,8 +126,7 @@ func ReadHeap(filename string) (heap *Heap, err error) {
     heap.jtypes = []*JType{
         nil,  // 0 unused
         nil,  // 1 unused
-        // Note object type descriptor is unnamed because varies by actual type
-        &JType{"", true, heap.idSize, 0},
+        &JType{"", true, heap.idSize, 0}, // object descriptor unnamed because it varies by actual type
         nil,  // 3 unused
         &JType{"[Z", false, 1, 0},
         &JType{"[C", false, 2, 0},
@@ -124,6 +136,8 @@ func ReadHeap(filename string) (heap *Heap, err error) {
         &JType{"[S", false, 2, 0},
         &JType{"[I", false, 4, 0},
         &JType{"[J", false, 8, 0} }
+
+    // TODO: keep input struct constant, don't return different one
 
     for in.Demand(headerSize) != nil {
 
@@ -177,9 +191,18 @@ func ReadHeap(filename string) (heap *Heap, err error) {
         }
     }
 
+    // class def post-processing
+
+    for _, def := range heap.classes[1:] {
+        def.cook()
+    }
+
+    log.Printf("%d references\n", len(heap.refsFrom))
     return
 }
 
+// Handle HEAP_DUMP or HEAP_DUMP_SEGMENT record.
+//
 func (heap *Heap) readSegment(in *util.MappedSection, length uint32) {
     end := in.Offset() + uint64(length)
     for in.Offset() < end {
@@ -227,6 +250,8 @@ func (heap *Heap) readGCRoot(in *util.MappedSection, kind string, skip uint32) {
     in.Skip(skip)
 }
 
+// Read instance based on established class layout.
+//
 func (heap *Heap) readInstance(in *util.MappedSection) {
 
     // TODO demand
@@ -238,31 +263,77 @@ func (heap *Heap) readInstance(in *util.MappedSection) {
     in.Skip(length)
 }
 
+// Read an array of objects or numeric primitives.
+//
 func (heap *Heap) readArray(in *util.MappedSection, isObjects bool) {
 
     // TODO demand
 
-    heap.readId(in) // hid
+    offset := in.Offset()
+    hid := heap.readId(in)
     in.Skip(4) // stack serial
     count := in.GetUInt32()
 
     if isObjects {
-        heap.readId(in) // array class hid
-        in.Skip(count * heap.idSize)
+        classHid := heap.readId(in) // array class hid
+        classDef := heap.HidClass(classHid)
+        oid := heap.nextOid(hid, classDef)
+        heap.addInstance(oid, classDef, offset, heap.idSize * (count + 1))
+        for ; count > 0; count -= 1 {
+            toHid := heap.readId(in)
+            if toHid != 0 {
+                heap.addReference(oid, toHid)
+            }
+        }
     } else {
         jtype := heap.readJType(in)
         in.Skip(count * jtype.size)
+            /*
+            val jtype = readJavaType
+            heap.addPrimitiveArray(id, jtype, offset, count * jtype.size + 2 * heap.idSize)
+            if (count > 0)
+                data.skip(count * jtype.size)
+            */
     }
+}
+
+func (heap *Heap) addInstance(oid ObjectId, def *ClassDef, offset uint64, size uint32) {
+}
+
+func (heap *Heap) addReference(from ObjectId, to HeapId) {
+    heap.refsFrom = append(heap.refsFrom, from)
+    heap.refsTo = append(heap.refsTo, to)
 }
 
 func (heap *Heap) readClassDump(in *util.MappedSection) {
 
     in.Demand(7 * heap.idSize + 8)
-    heap.readId(in) // hid
+    hid := heap.readId(in) // hid
     in.Skip(4) // stack serial
-    heap.readId(in) // superHid
+    superHid := heap.readId(in) // superHid
     in.Skip(5 * heap.idSize) // skip class loader ID, signer ID, protection domain ID, 2 reserved
     in.Skip(4) // instance size
+
+    nameId, ok := heap.classNames[hid]
+    if ! ok {
+        log.Fatalf("Class with hid %d has no name mapping\n", hid)
+    }
+
+    name, ok := heap.strings[nameId]
+    if ! ok {
+        log.Fatalf("Class name id %d for class hid %d has no mapping\n", hid)
+    }
+
+    // Update the JTypes if we've found a primitive array type.
+
+    if len(name) == 2 && name[0] == '[' {
+        for _, jtype := range heap.jtypes {
+            if jtype != nil && name == jtype.arrayClass {
+                // log.Printf("Found %s hid %d\n", name, hid)
+                jtype.hid = hid
+            }
+        }
+    }
 
     // Skip over constant pool
 
@@ -298,15 +369,20 @@ func (heap *Heap) readClassDump(in *util.MappedSection) {
 
     in.Demand(2)
     numFields := in.GetUInt16()
-    fieldNameIds := make([]HeapId, numFields, numFields)
+    fieldNames := make([]string, numFields, numFields)
     fieldTypes := make([]*JType, numFields, numFields)
 
     for i := 0; i < int(numFields); i++ {
-        fieldNameIds[i] = heap.readId(in)
+        fieldName, ok := heap.strings[heap.readId(in)]
+        if ! ok {
+            log.Fatalf("No name for field %d in class with hid %d\n", i, hid)
+            fieldName = "UNKNOWN"
+        }
+        fieldNames[i] = fieldName
         fieldTypes[i] = heap.readJType(in)
     }
 
-    // heap.addClassDef(classId, superclassId, fieldInfo, fieldNameIds);
+    heap.addClass(name, hid, superHid, fieldNames, fieldTypes)
 }
 
 // Read a native ID from heap data.
@@ -332,4 +408,55 @@ func (heap *Heap) readJType(in *util.MappedSection) *JType {
     return jtype
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////
+
+// Add a new class definition.  Takes the demangled name.
+//
+func (heap *Heap) addClass(name string, hid HeapId, superHid HeapId, 
+                            fieldNames []string, fieldTypes []*JType) *ClassDef {
+    heap.NumClasses += 1
+    cid := heap.NumClasses
+
+    fields := make([]*Field, len(fieldNames))
+    offset := uint32(0)
+    for i, name := range fieldNames {
+        fields[i] = &Field{name, fieldTypes[i], offset}
+        offset += fields[i].jtype.size
+    }
+
+    def := makeClassDef(heap, name, ClassId(cid), hid, superHid, fields)
+    heap.classes = append(heap.classes, def)
+    heap.classesByName[name] = def
+    heap.classesByHid[hid] = def
+
+    // log.Printf("Created %v\n", def)
+    return def
+}
+
+// Return the next available object ID and associate it with the given class def.
+//
+func (heap *Heap) nextOid(hid HeapId, def *ClassDef) ObjectId {
+    heap.NumObjects += 1
+    oid := heap.NumObjects
+    heap.objectCids = append(heap.objectCids, def.Cid)
+    return ObjectId(oid)
+}
+
+// Return the ClassDef with the given cid, or nil if none.
+//
+func (heap *Heap) HidClass(hid HeapId) *ClassDef {
+    return heap.classesByHid[hid]
+}
+
+// Return the ClassDef with the given heap id, or nil if none.
+//
+func (heap *Heap) CidClass(cid ClassId) *ClassDef {
+    return heap.classes[cid]
+}
+
+// Return the ClassDef for a given object id
+//
+func (heap *Heap) OidClass(oid ObjectId) *ClassDef {
+    return heap.classes[heap.objectCids[oid]]
+}
 

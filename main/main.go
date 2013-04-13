@@ -25,13 +25,25 @@ package main
 import (
     "flag"
     "log"
+    "os"
+    "runtime/pprof"
     "github.com/jonross/helmet/heap"
 )
 
 func main() {
 
+    cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
     flag.Parse()
     args := flag.Args()
+
+    if *cpuprofile != "" {
+        f, err := os.Create(*cpuprofile)
+        if err != nil {
+            log.Fatal(err)
+        }
+        pprof.StartCPUProfile(f)
+        defer pprof.StopCPUProfile()
+    }
 
     switch {
         case len(args) == 0:
