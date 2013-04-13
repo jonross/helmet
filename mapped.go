@@ -20,7 +20,7 @@
     SOFTWARE.
 */
 
-package util
+package helmet
 
 import (
     "log"

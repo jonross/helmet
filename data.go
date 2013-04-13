@@ -1,4 +1,4 @@
-package util
+package helmet
 
 func ReadShort(buf []byte) (int) {
     bits := uint(buf[0]) <<  8 |

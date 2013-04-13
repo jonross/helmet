@@ -20,7 +20,7 @@
     SOFTWARE.
 */
 
-package heap
+package helmet
 
 import (
     "log"

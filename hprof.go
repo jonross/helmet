@@ -20,11 +20,10 @@
     SOFTWARE.
 */
 
-package heap
+package helmet
 
 import (
     "log"
-    "github.com/jonross/helmet/util"
 )
 
 // A native ID read from the heap dump
@@ -39,7 +38,7 @@ type Heap struct {
     // Yes that
     filename string
     // And that
-    mappedFile *util.MappedFile
+    mappedFile *MappedFile
     // Size of a native ID on the heap, 4 or 8
     idSize uint32
     // true if idSize is 8
@@ -77,7 +76,7 @@ type Heap struct {
 func ReadHeap(filename string) (heap *Heap, err error) {
 
     heap = &Heap{filename: filename}
-    heap.mappedFile, err = util.MapFile(filename)
+    heap.mappedFile, err = MapFile(filename)
     if err != nil {
         return nil, err
     }
@@ -203,7 +202,7 @@ func ReadHeap(filename string) (heap *Heap, err error) {
 
 // Handle HEAP_DUMP or HEAP_DUMP_SEGMENT record.
 //
-func (heap *Heap) readSegment(in *util.MappedSection, length uint32) {
+func (heap *Heap) readSegment(in *MappedSection, length uint32) {
     end := in.Offset() + uint64(length)
     for in.Offset() < end {
         tag := in.GetByte()
@@ -244,7 +243,7 @@ func (heap *Heap) readSegment(in *util.MappedSection, length uint32) {
 // Read a GC root.  This has the HID at the start followed by some amount
 // of per-root data that we don't use.
 //
-func (heap *Heap) readGCRoot(in *util.MappedSection, kind string, skip uint32) {
+func (heap *Heap) readGCRoot(in *MappedSection, kind string, skip uint32) {
     hid := heap.readId(in)
     heap.gcRoots = append(heap.gcRoots, hid)
     in.Skip(skip)
@@ -252,7 +251,7 @@ func (heap *Heap) readGCRoot(in *util.MappedSection, kind string, skip uint32) {
 
 // Read instance based on established class layout.
 //
-func (heap *Heap) readInstance(in *util.MappedSection) {
+func (heap *Heap) readInstance(in *MappedSection) {
 
     // TODO demand
 
@@ -265,7 +264,7 @@ func (heap *Heap) readInstance(in *util.MappedSection) {
 
 // Read an array of objects or numeric primitives.
 //
-func (heap *Heap) readArray(in *util.MappedSection, isObjects bool) {
+func (heap *Heap) readArray(in *MappedSection, isObjects bool) {
 
     // TODO demand
 
@@ -305,7 +304,7 @@ func (heap *Heap) addReference(from ObjectId, to HeapId) {
     heap.refsTo = append(heap.refsTo, to)
 }
 
-func (heap *Heap) readClassDump(in *util.MappedSection) {
+func (heap *Heap) readClassDump(in *MappedSection) {
 
     in.Demand(7 * heap.idSize + 8)
     hid := heap.readId(in) // hid
@@ -387,7 +386,7 @@ func (heap *Heap) readClassDump(in *util.MappedSection) {
 
 // Read a native ID from heap data.
 //
-func (heap *Heap) readId(in *util.MappedSection) HeapId {
+func (heap *Heap) readId(in *MappedSection) HeapId {
     if (heap.longIds) {
         return HeapId(in.GetUInt64())
     }
@@ -396,7 +395,7 @@ func (heap *Heap) readId(in *util.MappedSection) HeapId {
 
 // Read a "Basic Type" ID from heap data and return the JType
 //
-func (heap *Heap) readJType(in *util.MappedSection) *JType {
+func (heap *Heap) readJType(in *MappedSection) *JType {
     tag := int(in.GetByte())
     if tag < 0 || tag >= len(heap.jtypes) {
         log.Fatalf("Unknown basic type %d at %d\n", tag, in.Offset() - 1)

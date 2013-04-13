@@ -20,36 +20,40 @@
     SOFTWARE.
 */
 
-package util
+package helmet
 
 import (
-    "math"
+    "flag"
+    "log"
     "os"
-    "syscall"
+    "runtime/pprof"
 )
 
-// MMap memory-maps a portion of a file using syscall.Mmap, up to a maximum
-// of math.MaxInt32 bytes (the limit imposed by mmap.)
-//
-func MMap(file *os.File, offset int64) ([]byte, error) {
+func main() {
 
-    info, err := file.Stat()
+    cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
+    flag.Parse()
+    args := flag.Args()
+
+    if *cpuprofile != "" {
+        f, err := os.Create(*cpuprofile)
+        if err != nil {
+            log.Fatal(err)
+        }
+        pprof.StartCPUProfile(f)
+        defer pprof.StopCPUProfile()
+    }
+
+    switch {
+        case len(args) == 0:
+            log.Fatal("Missing heap filename")
+        case len(args) > 1:
+            log.Fatal("Extra args following heap filename")
+    }
+
+    _, err := ReadHeap(flag.Arg(0))
     if err != nil {
-        return nil, err
+        log.Fatal(err)
     }
-
-    size := info.Size()
-    if size > int64(math.MaxInt32) {
-        size = int64(math.MaxInt32)
-    }
-
-    return syscall.Mmap(int(file.Fd()), offset, int(size),
-                           syscall.PROT_READ, syscall.MAP_SHARED)
-}
-
-// MUnmap unmaps a mapped file read with MMap.
-//
-func MUnmap(data []byte) error {
-    return syscall.Munmap(data)
 }
 
