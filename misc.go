@@ -20,36 +20,75 @@
     SOFTWARE.
 */
 
-package helmet
+package main
 
-import (
-    "math"
-    "os"
-    "syscall"
-)
+type BitSet []uint64
 
-// MMap memory-maps a portion of a file using syscall.Mmap, up to a maximum
-// of math.MaxInt32 bytes (the limit imposed by mmap.)
-//
-func MMap(file *os.File, offset int64) ([]byte, error) {
-
-    info, err := file.Stat()
-    if err != nil {
-        return nil, err
-    }
-
-    size := info.Size()
-    if size > int64(math.MaxInt32) {
-        size = int64(math.MaxInt32)
-    }
-
-    return syscall.Mmap(int(file.Fd()), offset, int(size),
-                           syscall.PROT_READ, syscall.MAP_SHARED)
+func MakeBitSet(size uint32) BitSet {
+    size = 1 + (size - 1) / 64
+    return make([]uint64, size, size)
 }
 
-// MUnmap unmaps a mapped file read with MMap.
-//
-func MUnmap(data []byte) error {
-    return syscall.Munmap(data)
+func (b BitSet) set(i uint32) {
+    b[i/64] |= 1 << (i % 64)
 }
 
+func (b BitSet) clear(i uint32) {
+    b[i/64] &^= 1 << (i % 64)
+}
+
+func (b BitSet) has(i uint32) bool {
+    return b[i/64] & (1 << (i % 64)) != 0
+}
+
+// GC-friendly approach to building enormous arrays.  Start by making one e.g.
+//   aa = make([][]uint32, 0, 10000)
+// This continually appends to the last array in aa and grows aa as needed but
+// never copies the 2nd-level arrays, which is O(n**2) in the worst case.  I've
+// found this approach is 20% to 40% faster than a 1-D array.
+//
+func xappend32(aa [][]uint32, val uint32) [][]uint32 {
+    a := aa[len(aa)-1]
+    if len(a) == cap(a) {
+        a = make([]uint32, 0, len(a))
+        aa = append(aa, a)
+    }
+    a = append(a, val)
+    return aa
+}
+
+// See xappend32()
+//
+func xappend64(aa [][]uint64, val uint64) [][]uint64 {
+    a := aa[len(aa)-1]
+    if len(a) == cap(a) {
+        a = make([]uint64, 0, len(a))
+        aa = append(aa, a)
+    }
+    a = append(a, val)
+    return aa
+}
+
+// See xappend32()
+//
+func xappendOid(aa [][]ObjectId, val ObjectId) [][]ObjectId {
+    a := aa[len(aa)-1]
+    if len(a) == cap(a) {
+        a = make([]ObjectId, 0, len(a))
+        aa = append(aa, a)
+    }
+    a = append(a, val)
+    return aa
+}
+
+// See xappend32()
+//
+func xappendHid(aa [][]HeapId, val HeapId) [][]HeapId {
+    a := aa[len(aa)-1]
+    if len(a) == cap(a) {
+        a = make([]HeapId, 0, len(a))
+        aa = append(aa, a)
+    }
+    a = append(a, val)
+    return aa
+}

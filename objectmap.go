@@ -23,40 +23,47 @@
 package main
 
 import (
-    "flag"
     "log"
-    "os"
-    "runtime"
-    "runtime/pprof"
 )
 
-func main() {
+const MaxHeapBits = 36
+const MaxHeapId = HeapId(1 << MaxHeapBits - 1)
 
-    runtime.GOMAXPROCS(runtime.NumCPU())
-
-    cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
-    flag.Parse()
-    args := flag.Args()
-
-    if *cpuprofile != "" {
-        f, err := os.Create(*cpuprofile)
-        if err != nil {
-            log.Fatal(err)
-        }
-        pprof.StartCPUProfile(f)
-        defer pprof.StopCPUProfile()
-    }
-
-    switch {
-        case len(args) == 0:
-            log.Fatal("Missing heap filename")
-        case len(args) > 1:
-            log.Fatal("Extra args following heap filename")
-    }
-
-    _, err := ReadHeap(flag.Arg(0))
-    if err != nil {
-        log.Fatal(err)
-    }
+// Maps native heap ids to ObjectIds.  To save space we pay attention to only the
+// lower 36 bits of the HID (which handles heaps up to 68G.)  We then have 1<<20
+// maps, each of which maps the low 16 bits of the HID for the same high 20 bits.
+//
+type ObjectMap struct {
+    mappings []map[uint16]ObjectId
+    heapIds [][]uint64
 }
 
+func MakeObjectMap() *ObjectMap {
+    numMaps := 1 << (MaxHeapBits - 16)
+    heapIds := [][]uint64{make([]uint64, 0, 100000)}
+    return &ObjectMap{make([]map[uint16]ObjectId, numMaps, numMaps), heapIds}
+}
+
+func (m *ObjectMap) add(hid HeapId, oid ObjectId) {
+    if hid > MaxHeapId {
+        log.Fatalf("Heap ID %d too big\n", hid)
+    }
+    slot := hid >> 16
+    mapping := m.mappings[slot]
+    if mapping == nil {
+        m.mappings[slot] = make(map[uint16]ObjectId)
+        mapping = m.mappings[slot]
+    }
+    m.heapIds = xappend64(m.heapIds, uint64(hid))
+    return // TODO put back
+    mapping[uint16(hid & 0xFFFF)] = oid
+}
+
+func (m * ObjectMap) get(hid HeapId) ObjectId {
+    slot := hid >> 16
+    mapping := m.mappings[slot]
+    if mapping != nil {
+        return mapping[uint16(hid & 0xFFFF)]
+    }
+    return 0
+}

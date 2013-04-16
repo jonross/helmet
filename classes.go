@@ -20,7 +20,7 @@
     SOFTWARE.
 */
 
-package helmet
+package main
 
 import (
     "log"
@@ -55,6 +55,10 @@ type ClassDef struct {
     NumInstances uint32
     // # of bytes in all instances
     NumBytes uint64
+    // size of instance layout, including superclasses; returned by layoutSize()
+    span uint32
+    // offsets of reference fields, including superclases; returned by refOffsets()
+    refs []uint32
 }
 
 // One of these for each non-static member in a class def
@@ -63,7 +67,7 @@ type Field struct {
     // field name from java source
     Name string
     // type information
-    jtype *JType
+    JType *JType
     // offset from start of the this class's fields
     Offset uint32
 }
@@ -72,13 +76,13 @@ type Field struct {
 //
 type JType struct {
     // JVM short class name for an array of this type e.g. "[I"
-    arrayClass string
+    ArrayClass string
     // true if this is an object type, not a primitive type
-    isObj bool
+    IsObj bool
     // size in bytes
-    size uint32
+    Size uint32
     // assigned when found in heap
-    hid HeapId
+    Hid HeapId
 }
 
 // Create a ClassDef given the minimal required information.
@@ -88,35 +92,62 @@ func makeClassDef(heap *Heap, name string, cid ClassId,
     isRoot := name == "java.lang.Object" || name == "java/lang/Object"
     return &ClassDef{cooked: false, heap: heap, Name: name, Cid: ClassId(cid), 
                         Hid: hid, SuperHid: superHid, super: nil, fields: fields, 
-                        IsRoot: isRoot, NumInstances: 0, NumBytes: 0}
+                        IsRoot: isRoot, NumInstances: 0, NumBytes: 0, span: 0, refs: nil}
 }
 
-// Return this class's superclass ClassDef.  Not usable until the class def
-// has been cooked.
+// Return this class's superclass ClassDef.
+// Cooks the class as a side effect.
 //
 func (def *ClassDef) SuperDef() *ClassDef {
-    def.ensureCooked("SuperDef")
+    if ! def.cooked {
+        def.Cook()
+    }
     return def.super
 }
 
-// Is this class a subclass of another class.  Same caveats as SuperDef.
+// Is this class a subclass of another class.
+// Cooks the class as a side effect.
 //
 func (def *ClassDef) IsSubclassOf(super *ClassDef) bool {
+    if ! def.cooked {
+        def.Cook()
+    }
     return !def.IsRoot && (def.SuperHid == super.Hid || def.SuperDef().IsSubclassOf(super))
+}
+
+// Return offsets of reference fields, including superclasses.
+// Cooks the class as a side effect.
+//
+func (def *ClassDef) RefOffsets() []uint32 {
+    if ! def.cooked {
+        def.Cook()
+    }
+    return def.refs
+}
+
+// Return size of the instance layout in bytes, including superclasses.
+// Cooks the class as a side effect.
+//
+func (def *ClassDef) LayoutSize() uint32 {
+    if ! def.cooked {
+        def.Cook()
+    }
+    return def.span
 }
 
 // Update instance count & size
 //
-func (def *ClassDef) addObject(size uint32) {
+func (def *ClassDef) AddObject(size uint32) {
     def.NumInstances += 1
     def.NumBytes += uint64(size)
 }
 
-// "Cook" the class def after the heap dump is read.  Resolves the superclass pointer
-// (which can't be done until all classes are known) and computes reference offsets.
-// Cooks all superclasses as a side effect.
+// "Cook" the class def, generally after the heap dump is read but in any case only works
+// after all superclass defs have been identified.  Resolves the superclass pointer
+// and computes reference offsets.  Cooks all superclasses as a side effect.
 //
-func (def *ClassDef) cook() {
+func (def *ClassDef) Cook() {
+
     if def.cooked {
         return
     }
@@ -125,16 +156,38 @@ func (def *ClassDef) cook() {
         if def.super == nil {
             log.Fatalf("No super def for %v\n", def)
         }
-        def.super.cook()
+        def.super.Cook()
     }
+
+    // Determine size of instance layout
+
+    span := uint32(0)
+    if ! def.IsRoot {
+        span = def.super.LayoutSize()
+    }
+    for _, field := range def.fields {
+        span += field.JType.Size
+    }
+    def.span = span
+
+    // Determine offsets of reference fields
+
+    base := uint32(0)
+    offsets := []uint32{}
+    if ! def.IsRoot {
+        base = def.super.LayoutSize()
+        for _, offset := range def.super.RefOffsets() {
+            offsets = append(offsets, offset)
+        }
+    }
+    for _, field := range def.fields {
+        if field.JType.IsObj {
+            offsets = append(offsets, base)
+        }
+        base += field.JType.Size
+    }
+    def.refs = offsets
+    // log.Printf("%s has refs at %v\n", def.Name, def.refs)
+
     def.cooked = true
 }
-
-// Verify class is cooked else panic.
-//
-func (def *ClassDef) ensureCooked(funcName string) {
-    if ! def.cooked {
-        log.Fatalf("ClassDef.%s invoked on raw def: %v\n", funcName, def)
-    }
-}
-

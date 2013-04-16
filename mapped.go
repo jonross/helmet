@@ -20,7 +20,7 @@
     SOFTWARE.
 */
 
-package helmet
+package main
 
 import (
     "log"
@@ -39,7 +39,7 @@ type MappedFile struct {
     filename string
     file *os.File
     // total size of the file
-    size uint64
+    Size uint64
     // what have we mapped so far
     sections [][]byte
 }
@@ -75,7 +75,7 @@ func MapFile(filename string) (mf *MappedFile, err error) {
         mf.file.Close()
         return nil, err
     }
-    mf.size = uint64(info.Size())
+    mf.Size = uint64(info.Size())
     return
 }
 
@@ -83,7 +83,7 @@ func MapFile(filename string) (mf *MappedFile, err error) {
 // automatically by Demand().  Panics on failure since there is no recovery.
 //
 func (mf *MappedFile) MapAt(offset uint64) *MappedSection {
-    length := mf.size - offset
+    length := mf.Size - offset
     if length > uint64(math.MaxInt32) {
         length = uint64(math.MaxInt32)
     }
@@ -92,7 +92,7 @@ func (mf *MappedFile) MapAt(offset uint64) *MappedSection {
     if err != nil {
         log.Fatalf("Can't map %s %d bytes at %d: %s\n", mf.filename, length, offset, err)
     }
-    log.Printf("Mapping %s %d bytes at %d\n", mf.filename, length, offset)
+    // log.Printf("Mapping %s %d bytes at %d\n", mf.filename, length, offset)
     return &MappedSection{mf, bytes, uint32(length), offset, 0}
 }
 
@@ -111,10 +111,15 @@ func (mf *MappedFile) Close() {
 // available.
 //
 func (ms *MappedSection) Demand(count uint32) *MappedSection {
+    /*
+        val overrun = nbytes - mapped.remaining
+        if (overrun > 0)
+            remap(offset + mapped.position)
+    */
     remain := ms.size - ms.localOffset
     if (remain < count) {
         newOffset := ms.baseOffset + uint64(ms.localOffset)
-        if newOffset == ms.mappedFile.size {
+        if newOffset == ms.mappedFile.Size {
             return nil
         }
         ms.Unmap()
@@ -215,7 +220,15 @@ func (ms *MappedSection) GetString(count uint32) string {
 // Skip over some of the section.
 //
 func (ms *MappedSection) Skip(count uint32) {
+    // TODO account for Demand
     ms.localOffset += count
+    /*
+        val overrun = nbytes - mapped.remaining
+        if (overrun > 0)
+            remap(offset + mapped.limit + overrun)
+        else
+            mapped position(mapped.position + nbytes.asInstanceOf[Int])
+    */
 }
 
 // Return the global file offset

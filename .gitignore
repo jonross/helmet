@@ -1,3 +1,2 @@
-*/*.swp
-main/helmet
-./helmet
+helmet
+*.swp
