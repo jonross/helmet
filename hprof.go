@@ -24,6 +24,7 @@ package main
 
 import (
     "log"
+    "runtime"
 )
 
 type HProfReader struct {
@@ -37,9 +38,11 @@ type HProfReader struct {
     longIds bool
     // target heap tracker
     *Heap
+    // track references?
+    needRefs bool
 }
 
-func ReadHeapDump(filename string) *Heap {
+func ReadHeapDump(filename string, options *HeapOptions) *Heap {
 
     mappedFile, err := MapFile(filename)
     if err != nil {
@@ -60,6 +63,7 @@ func ReadHeapDump(filename string) *Heap {
     hprof := &HProfReader{
         Filename: filename,
         MappedFile: mappedFile,
+        needRefs: options.NeedRefs,
     }
 
     hprof.idSize = in.GetUInt32()
@@ -69,17 +73,15 @@ func ReadHeapDump(filename string) *Heap {
     hprof.longIds = hprof.idSize == 8
     in.Skip(8) // skip timestamp
 
-    hprof.read(in)
-    return nil
-
+    return hprof.read(in, options)
 }
 
 // Complete heap reader in one call.  Most of the error conditions (like
 // unresolvable classes) cause panics BTW.
 //
-func (hprof *HProfReader) read(in *MappedSection) {
+func (hprof *HProfReader) read(in *MappedSection, options *HeapOptions) *Heap {
 
-    hprof.Heap = NewHeap(hprof)
+    hprof.Heap = NewHeap(hprof, options)
     heap := hprof.Heap
 
     // TODO: keep input struct constant, don't return different one
@@ -143,8 +145,17 @@ func (hprof *HProfReader) read(in *MappedSection) {
         }
     }
 
-    bags := heap.segReader.close()
-    MergeBags(bags, func(hid HeapId) ObjectId {return ObjectId(1)})
+    if options.NeedRefs {
+        bags := heap.segReader.close()
+        from, to := MergeBags(bags, func(hid HeapId) ObjectId {return ObjectId(1)})
+        NewGraph(from, to)
+        bags = nil // allow gc
+        heap.segReader = nil
+        runtime.GC()
+        if options.NeedRefs {
+            log.Printf("%d references\n", len(from))
+        }
+    }
 
     // class def post-processing
 
@@ -154,8 +165,8 @@ func (hprof *HProfReader) read(in *MappedSection) {
 
     log.Printf("%d records, %d UTF8\n", numRecords, numStrings)
     log.Printf("%d objects\n", heap.NumObjects)
-    // log.Printf("%d references\n", len(heap.refsFrom))
-    return
+
+    return heap
 }
 
 // Handle HEAP_DUMP or HEAP_DUMP_SEGMENT record.
@@ -163,23 +174,18 @@ func (hprof *HProfReader) read(in *MappedSection) {
 func (hprof *HProfReader) readSegment(in *MappedSection, length uint32) int {
     end := in.Offset() + uint64(length)
     numRecords := 0
-    heap := hprof.Heap
     for in.Offset() < end {
         numRecords++
         tag := in.GetByte()
         // log.Printf("tag %d\n", tag)
         switch tag {
             case 0x21: // INSTANCE_DUMP
-                heap.NumObjects++
                 hprof.readInstance(in)
             case 0x22: // OBJECT_ARRAY
-                heap.NumObjects++
                 hprof.readArray(in, true)
             case 0x23: // PRIMITIVE_ARRAY
-                heap.NumObjects++
                 hprof.readArray(in, false)
             case 0x20: // CLASS_DUMP
-                heap.NumClasses++
                 hprof.readClassDump(in)
             case 0x01: // ROOT_JNI_GLOBAL
                 hprof.readGCRoot(in, "JNI global", hprof.idSize)
@@ -315,8 +321,12 @@ func (hprof *HProfReader) readInstance(in *MappedSection) {
     in.Skip(4) // stack serial
     class := heap.HidClass(hprof.readId(in))
     length := in.GetUInt32()
+    heap.AddInstance(class, length + heap.idSize) // include object monitor
 
-    heap.doInstance(offset, ObjectId(heap.NumObjects), class)
+    if heap.segReader != nil {
+        heap.doInstance(offset, ObjectId(heap.NumObjects), class)
+    }
+
     in.Skip(length)
 }
 
@@ -342,12 +352,18 @@ func (hprof *HProfReader) readArray(in *MappedSection, isObjects bool) {
     if isObjects {
         in.Demand(hprof.idSize)
         class := heap.HidClass(hprof.readId(in))
-        heap.doInstance(offset, ObjectId(heap.NumObjects), class)
+        heap.AddInstance(class, (count + 2) * hprof.idSize) // include header size
+        if heap.segReader != nil {
+            heap.doInstance(offset, ObjectId(heap.NumObjects), class)
+        }
         in.Skip(count * hprof.idSize)
     } else {
         in.Demand(1)
         jtype :=  hprof.readJType(in)
-        heap.doInstance(offset, ObjectId(heap.NumObjects), jtype.Class)
+        heap.AddInstance(jtype.Class, count * jtype.Size + 2 * heap.idSize) // include header size
+        if heap.segReader != nil {
+            heap.doInstance(offset, ObjectId(heap.NumObjects), jtype.Class)
+        }
         in.Skip(count * jtype.Size)
     }
 

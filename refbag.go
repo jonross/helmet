@@ -23,7 +23,6 @@
 package main
 
 import (
-    "log"
     "sync"
 )
 
@@ -53,18 +52,20 @@ func (refs *RefBag) Add(from ObjectId, to HeapId) {
 // using a resolution function to turn referee heap IDs into object IDs.  The bags
 // should be discarded afterward to save memory.
 //
-func MergeBags(bags []*RefBag, resolver func(HeapId) ObjectId) {
+func MergeBags(bags []*RefBag, resolver func(HeapId) ObjectId) ([]ObjectId, []ObjectId){
 
     count := 0
     for _, bag := range bags {
         count += bag.count
     }
-    log.Printf("Resolving %d references\n", count)
 
     var wg sync.WaitGroup
     newFrom := make([]ObjectId, count)
     newTo := make([]ObjectId, count)
     offset := 0
+
+    // Crank a separate goroutine for each sublist in each bag, giving it a partition
+    // in newFrom/newTo to write reference data.
 
     for _, bag := range bags {
         wg.Add(len(bag.from))
@@ -81,6 +82,7 @@ func MergeBags(bags []*RefBag, resolver func(HeapId) ObjectId) {
     }
 
     wg.Wait()
+    return newFrom, newTo
 }
 
 

@@ -34,11 +34,11 @@ func TestEdges(t *testing.T) {
 // Generate a sample graph.
 //
 func makeGraph(edges [][]int) *Graph {
-    var src, dst []int
+    var src, dst []ObjectId
     for _, list := range edges {
         for _, node := range list[1:] {
-            src = append(src, list[0])
-            dst = append(dst, node)
+            src = append(src, ObjectId(list[0]))
+            dst = append(dst, ObjectId(node))
         }
     }
     return NewGraph(src, dst)
@@ -49,12 +49,12 @@ func makeGraph(edges [][]int) *Graph {
 //
 func verifyGraph(t *testing.T, g *Graph, edges[][]int) {
     for _, list := range edges {
-        node := list[0]
+        node := ObjectId(list[0])
         expected := list[1:]
         var actual []int
         log.Printf("checking node %d\n", node)
         for n, pos := g.OutEdges(node); pos != 0; n, pos = g.NextOutEdge(pos) {
-            actual = append(actual, n)
+            actual = append(actual, int(n))
         }
         IntAryReverse(actual)
         if ! IntAryEq(expected, actual) {

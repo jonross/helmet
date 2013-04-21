@@ -63,6 +63,8 @@ type Heap struct {
     classesByHid map[HeapId]*ClassDef
     // object cids, indexed by synthetic object id
     objectCids []ClassId
+    // object sizes, indexed by same
+    objectSizes []uint32
     // temporary mapping from HeapIds to ObjectIds
     objectMap *ObjectMap
     // packages to search for unqualified class names
@@ -71,7 +73,15 @@ type Heap struct {
     *segReader
 }
 
-func NewHeap(reader *HProfReader) *Heap {
+// Processing options.
+//
+
+type HeapOptions struct {
+    // do we need the reference graph
+    NeedRefs bool
+}
+
+func NewHeap(reader *HProfReader, options *HeapOptions) *Heap {
 
     heap := &Heap{HProfReader: reader}
     heap.strings = make(map[HeapId]string, 100000)
@@ -85,9 +95,14 @@ func NewHeap(reader *HProfReader) *Heap {
 
     heap.NumObjects = 0
     heap.objectMap = MakeObjectMap()
-    heap.objectCids = make([]ClassId, 1, 10000000) // entry[0] not used
 
-    heap.segReader = makeSegReader(heap)
+    // TODO size accurately
+    heap.objectCids = make([]ClassId, 1, 10000000) // entry[0] not used
+    heap.objectSizes = make([]uint32, 1, 10000000) // entry[0] not used
+
+    if options.NeedRefs {
+        heap.segReader = makeSegReader(heap)
+    }
 
     heap.autoPrefixes = []string {
         "java.lang.",
@@ -119,9 +134,10 @@ func NewHeap(reader *HProfReader) *Heap {
 func (heap *Heap) addClass(name string, hid HeapId, superHid HeapId, fieldNames []string, 
                             fieldTypes []*JType, staticRefs []HeapId) *ClassDef {
 
-    class := heap.classesByName[name]
+    dname := Demangle(name)
+    class := heap.classesByName[dname]
     if class != nil {
-        log.Fatalf("Class named %s already defined\n", name)
+        log.Fatalf("Class named %s already defined\n", dname)
     }
     class = heap.classesByHid[hid]
     if class != nil {
@@ -138,9 +154,9 @@ func (heap *Heap) addClass(name string, hid HeapId, superHid HeapId, fieldNames 
         offset += fields[i].JType.Size
     }
 
-    def := makeClassDef(heap, name, ClassId(cid), hid, superHid, fields, staticRefs)
+    def := makeClassDef(heap, dname, ClassId(cid), hid, superHid, fields, staticRefs)
     heap.classes = append(heap.classes, def)
-    heap.classesByName[name] = def
+    heap.classesByName[dname] = def
     heap.classesByHid[hid] = def
 
     // Update the JTypes if we've found a primitive array type.
@@ -158,7 +174,10 @@ func (heap *Heap) addClass(name string, hid HeapId, superHid HeapId, fieldNames 
     return def
 }
 
-func (heap *Heap) addInstance(oid ObjectId, def *ClassDef, offset uint64, size uint32) {
+func (heap *Heap) AddInstance(class *ClassDef, size uint32) {
+    heap.NumObjects++
+    heap.objectCids = append(heap.objectCids, class.Cid)
+    heap.objectSizes = append(heap.objectSizes, size)
 }
 
 // Return the ClassDef with the given name, or nil if none.
@@ -193,4 +212,10 @@ func (heap *Heap) CidClass(cid ClassId) *ClassDef {
 //
 func (heap *Heap) OidClass(oid ObjectId) *ClassDef {
     return heap.classes[heap.objectCids[oid]]
+}
+
+// Return the size for a given object id
+//
+func (heap *Heap) OidSize(oid ObjectId) uint32 {
+    return heap.objectSizes[oid]
 }

@@ -23,54 +23,17 @@
 package main
 
 import (
-    "flag"
-    "log"
-    "os"
-    "runtime"
-    "runtime/pprof"
+    "testing"
 )
 
-func main() {
-
-    runtime.GOMAXPROCS(runtime.NumCPU())
-    // runtime.GOMAXPROCS(1)
-
-    cpuProfile := flag.String("cpuprofile", "", "write cpu profile to file")
-    doHisto := flag.Bool("histo", false, "generate class histogram & exit")
-    flag.Parse()
-    args := flag.Args()
-
-    if *cpuProfile != "" {
-        f, err := os.Create(*cpuProfile)
-        if err != nil {
-            log.Fatal(err)
+func TestDemangle(t *testing.T) {
+    try := func(input, wanted string) {
+        result := Demangle(input)
+        if result != wanted {
+            t.Errorf("For %s wanted %s but got %s\n", input, wanted, result)
         }
-        pprof.StartCPUProfile(f)
-        defer pprof.StopCPUProfile()
     }
-
-    switch {
-        case len(args) == 0:
-            log.Fatal("Missing heap filename")
-        case len(args) > 1:
-            log.Fatal("Extra args following heap filename")
-    }
-
-    options := &HeapOptions{}
-    if ! *doHisto {
-        options.NeedRefs = true
-    }
-
-    heap := ReadHeapDump(flag.Arg(0), options)
-
-    if *doHisto {
-        histo := NewHisto(heap.NumClasses, heap.NumObjects)
-        for i := uint32(1); i <= heap.NumObjects; i++ {
-            oid := ObjectId(i)
-            class := heap.OidClass(oid)
-            histo.Add(oid, class, heap.OidSize(oid)) // TODO: need sizes
-        }
-        histo.Print(os.Stdout)
-    }
+    try("[[I", "int[][]")
+    try("[Lcom/foo/Bar;", "com.foo.Bar[]")
+    try("com/foo/Bar", "com.foo.Bar")
 }
-

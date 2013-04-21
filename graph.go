@@ -35,7 +35,7 @@ type Graph struct {
 
 type edgeSet struct {
     // Merged edge list of all nodes
-    edges []int
+    edges []ObjectId
     // Offset of each node's edges in merged list, or 0 if none
     offsets []int
     // Indicates which offsets are the start of an edge set
@@ -45,16 +45,16 @@ type edgeSet struct {
 // Use this form to create a Graph if only the source and destination nodes are
 // known for each edge.
 //
-func NewGraph(src []int, dst[]int) *Graph {
+func NewGraph(src []ObjectId, dst[]ObjectId) *Graph {
 
-    srcMax := 0
-    dstMax := 0
+    srcMax := ObjectId(0)
+    dstMax := ObjectId(0)
 
     var wg sync.WaitGroup
     wg.Add(2)
 
-    maxer := func(a []int, result *int) {
-        max := 0
+    maxer := func(a []ObjectId, result *ObjectId) {
+        max := ObjectId(0)
         for _, node := range a {
             if node > max {
                 max = node
@@ -78,7 +78,7 @@ func NewGraph(src []int, dst[]int) *Graph {
 // Use this form to create a Graph if the source and destination nodes + the
 // maximum node ID are known.
 //
-func NewGraphWithMax(src []int, dst []int, maxNode int) * Graph {
+func NewGraphWithMax(src []ObjectId, dst []ObjectId, maxNode ObjectId) * Graph {
 
     var srcCounts []int
     var dstCounts []int
@@ -86,7 +86,7 @@ func NewGraphWithMax(src []int, dst []int, maxNode int) * Graph {
     var wg sync.WaitGroup
     wg.Add(2)
 
-    counter := func(a []int, result *[]int) {
+    counter := func(a []ObjectId, result *[]int) {
         counts := make([]int, maxNode + 1)
         for _, node := range a {
             counts[node]++
@@ -105,7 +105,7 @@ func NewGraphWithMax(src []int, dst []int, maxNode int) * Graph {
 // Use this form to create a Graph if the source and destination nodes + the
 // edge counts from each source & destination are known.  Modifies count arrays.
 //
-func NewGraphWithCounts(src []int, dst []int, srcCounts []int, dstCounts []int) *Graph {
+func NewGraphWithCounts(src []ObjectId, dst []ObjectId, srcCounts []int, dstCounts []int) *Graph {
 
     g := &Graph{}
     var wg sync.WaitGroup
@@ -131,11 +131,11 @@ func NewGraphWithCounts(src []int, dst []int, srcCounts []int, dstCounts []int) 
 //         ...
 //     }
 //
-func (g *Graph) OutEdges(node int) (int, int) {
+func (g *Graph) OutEdges(node ObjectId) (ObjectId, int) {
     return g.outs.walk(node)
 }
 
-func (g *Graph) NextOutEdge(pos int) (int, int) {
+func (g *Graph) NextOutEdge(pos int) (ObjectId, int) {
     return g.outs.next(pos)
 }
 
@@ -145,20 +145,20 @@ func (g *Graph) NextOutEdge(pos int) (int, int) {
 //         ...
 //     }
 //
-func (g *Graph) InEdges(node int) (int, int) {
+func (g *Graph) InEdges(node ObjectId) (ObjectId, int) {
     return g.ins.walk(node)
 }
 
-func (g *Graph) NextInEdge(pos int) (int, int) {
+func (g *Graph) NextInEdge(pos int) (ObjectId, int) {
     return g.ins.next(pos)
 }
 
 // Create an edge set.  Overwrites the count array as a side effect.
 //
-func newEdgeSet(src []int, dst []int, counts []int) *edgeSet {
+func newEdgeSet(src []ObjectId, dst []ObjectId, counts []int) *edgeSet {
 
     e := &edgeSet {
-        edges: make([]int, len(src) + 1), // 1 entry per edge, index 0 not used
+        edges: make([]ObjectId, len(src) + 1), // 1 entry per edge, index 0 not used
         isStart: make([]bool, len(src) + 2), // matches edges but also need a terminator entry
         offsets: make([]int, len(counts)), // 1 entry per node
     }
@@ -187,7 +187,7 @@ func newEdgeSet(src []int, dst []int, counts []int) *edgeSet {
 
 // Start walking an edge set from the specified node.
 //
-func (e *edgeSet) walk(node int) (int, int) {
+func (e *edgeSet) walk(node ObjectId) (ObjectId, int) {
     offset := e.offsets[node]
     if offset == 0 {
         return 0, 0
@@ -195,7 +195,7 @@ func (e *edgeSet) walk(node int) (int, int) {
     return e.edges[offset], offset
 }
 
-func (e *edgeSet) next(offset int) (int, int) {
+func (e *edgeSet) next(offset int) (ObjectId, int) {
     offset++
     if e.isStart[offset] {
         return 0, 0

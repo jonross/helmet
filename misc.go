@@ -22,9 +22,44 @@
 
 package main
 
+import (
+    "log"
+    "strings"
+)
+
+// Demangle heap class names, e.g.
+//
+//     [[I                -> int[][]
+//     [Lcom/foo/Bar;     -> com.foo.Bar[]
+//     com/foo/Bar        -> com.foo.Bar
+//
+func Demangle(name string) string {
+    dimen := 0
+    for name[0] == '[' {
+        name = name[1:]
+        dimen++
+    }
+    if name[0] == 'L' {
+        return Demangle(name[1:len(name)-1]) + strings.Repeat("[]", dimen)
+    }
+    if dimen > 0 {
+        prim, ok := prims[name[0]]
+        if ! ok {
+            log.Fatalf("Unknown primitive in type spec %s\n", name)
+        }
+        return prim + strings.Repeat("[]", dimen)
+    }
+    return strings.Replace(name, "/", ".", -1)
+}
+
+var prims = map[byte]string{
+    'Z': "boolean", 'C': "char", 'F': "float", 'D': "double",
+    'B': "byte", 'S': "short", 'I': "int", 'J': "long",
+}
+
 type BitSet []uint64
 
-func MakeBitSet(size uint32) BitSet {
+func NewBitSet(size uint32) BitSet {
     size = 1 + (size - 1) / 64
     return make([]uint64, size, size)
 }
