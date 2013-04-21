@@ -22,39 +22,40 @@
 
 package main
 
-import (
-    "flag"
-    "log"
-    "os"
-    "runtime"
-    "runtime/pprof"
-)
+// Wherein we write some functions that make me think, "WTF, Go -- why isn't this
+// in a standard library?"
 
-func main() {
+func IntMax(a int, b int) int {
+    if (a > b) {
+        return a
+    }
+    return b;
+}
 
-    runtime.GOMAXPROCS(runtime.NumCPU())
-    // runtime.GOMAXPROCS(1)
-
-    cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
-    flag.Parse()
-    args := flag.Args()
-
-    if *cpuprofile != "" {
-        f, err := os.Create(*cpuprofile)
-        if err != nil {
-            log.Fatal(err)
+func IntAryReverse(a []int) {
+    end := len(a) - 1
+    if end > 0 {
+        for start := 0; start < end; {
+            tmp := a[start]
+            a[start] = a[end]
+            a[end] = tmp
+            start++
+            end--
         }
-        pprof.StartCPUProfile(f)
-        defer pprof.StopCPUProfile()
     }
+}
 
-    switch {
-        case len(args) == 0:
-            log.Fatal("Missing heap filename")
-        case len(args) > 1:
-            log.Fatal("Extra args following heap filename")
+func IntAryEq(a, b []int) bool {
+    lenA := len(a)
+    lenB := len(b)
+    if lenA != lenB {
+        return false
     }
-
-    ReadHeapDump(flag.Arg(0))
+    for i, x := range a {
+        if x != b[i] {
+            return false
+        }
+    }
+    return true
 }
 
