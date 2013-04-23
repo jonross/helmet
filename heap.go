@@ -24,6 +24,7 @@ package main
 
 import (
     "log"
+    "runtime"
     "strings"
 )
 
@@ -66,7 +67,7 @@ type Heap struct {
     // object sizes, indexed by same
     objectSizes []uint32
     // temporary mapping from HeapIds to ObjectIds
-    objectMap *ObjectMap
+    objectMap ObjectMap
     // packages to search for unqualified class names
     autoPrefixes []string
     // concurrent heap segment reader
@@ -94,7 +95,6 @@ func NewHeap(reader *HProfReader, options *HeapOptions) *Heap {
     heap.classesByHid = make(map[HeapId]*ClassDef, 50000)
 
     heap.NumObjects = 0
-    heap.objectMap = MakeObjectMap()
 
     // TODO size accurately
     heap.objectCids = make([]ClassId, 1, 10000000) // entry[0] not used
@@ -174,10 +174,11 @@ func (heap *Heap) addClass(name string, hid HeapId, superHid HeapId, fieldNames 
     return def
 }
 
-func (heap *Heap) AddInstance(class *ClassDef, size uint32) {
+func (heap *Heap) AddInstance(hid HeapId, class *ClassDef, size uint32) {
     heap.NumObjects++
     heap.objectCids = append(heap.objectCids, class.Cid)
     heap.objectSizes = append(heap.objectSizes, size)
+    heap.objectMap.Add(hid, ObjectId(heap.NumObjects))
 }
 
 // Return the ClassDef with the given name, or nil if none.
@@ -194,6 +195,26 @@ func (heap *Heap) ClassNamed(name string) *ClassDef {
         }
     }
     return nil
+}
+
+func (heap *Heap) PostProcess() {
+
+    heap.objectMap.PostProcess()
+
+    if heap.segReader != nil {
+        bags := heap.segReader.close()
+        from, to := MergeBags(bags, func(hid HeapId) ObjectId {return heap.objectMap.Get(hid)})
+        NewGraph(from, to)
+        bags = nil // allow gc
+        heap.segReader = nil
+        runtime.GC()
+        log.Printf("%d references\n", len(from))
+    }
+
+    for _, def := range heap.classes[1:] {
+        def.Cook()
+    }
+
 }
 
 // Return the ClassDef with the given cid, or nil if none.

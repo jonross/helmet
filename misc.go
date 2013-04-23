@@ -64,15 +64,15 @@ func NewBitSet(size uint32) BitSet {
     return make([]uint64, size, size)
 }
 
-func (b BitSet) set(i uint32) {
+func (b BitSet) Set(i uint32) {
     b[i/64] |= 1 << (i % 64)
 }
 
-func (b BitSet) clear(i uint32) {
+func (b BitSet) Clear(i uint32) {
     b[i/64] &^= 1 << (i % 64)
 }
 
-func (b BitSet) has(i uint32) bool {
+func (b BitSet) Has(i uint32) bool {
     return b[i/64] & (1 << (i % 64)) != 0
 }
 

@@ -24,7 +24,6 @@ package main
 
 import (
     "log"
-    "runtime"
 )
 
 type HProfReader struct {
@@ -145,23 +144,7 @@ func (hprof *HProfReader) read(in *MappedSection, options *HeapOptions) *Heap {
         }
     }
 
-    if options.NeedRefs {
-        bags := heap.segReader.close()
-        from, to := MergeBags(bags, func(hid HeapId) ObjectId {return ObjectId(1)})
-        NewGraph(from, to)
-        bags = nil // allow gc
-        heap.segReader = nil
-        runtime.GC()
-        if options.NeedRefs {
-            log.Printf("%d references\n", len(from))
-        }
-    }
-
-    // class def post-processing
-
-    for _, def := range heap.classes[1:] {
-        def.Cook()
-    }
+    heap.PostProcess()
 
     log.Printf("%d records, %d UTF8\n", numRecords, numStrings)
     log.Printf("%d objects\n", heap.NumObjects)
@@ -317,11 +300,11 @@ func (hprof *HProfReader) readInstance(in *MappedSection) {
     // length           uint32
 
     in.Demand(8 + 2 * hprof.idSize)
-    hprof.readId(in)
+    hid := hprof.readId(in)
     in.Skip(4) // stack serial
     class := heap.HidClass(hprof.readId(in))
     length := in.GetUInt32()
-    heap.AddInstance(class, length + heap.idSize) // include object monitor
+    heap.AddInstance(hid, class, length + heap.idSize) // include object monitor
 
     if heap.segReader != nil {
         heap.doInstance(offset, ObjectId(heap.NumObjects), class)
@@ -345,14 +328,14 @@ func (hprof *HProfReader) readArray(in *MappedSection, isObjects bool) {
     // # elements       uint32
 
     in.Demand(hprof.idSize + 8)
-    hprof.readId(in)
+    hid := hprof.readId(in)
     in.Skip(4) // stack serial
     count := in.GetUInt32()
 
     if isObjects {
         in.Demand(hprof.idSize)
         class := heap.HidClass(hprof.readId(in))
-        heap.AddInstance(class, (count + 2) * hprof.idSize) // include header size
+        heap.AddInstance(hid, class, (count + 2) * hprof.idSize) // include header size
         if heap.segReader != nil {
             heap.doInstance(offset, ObjectId(heap.NumObjects), class)
         }
@@ -360,7 +343,7 @@ func (hprof *HProfReader) readArray(in *MappedSection, isObjects bool) {
     } else {
         in.Demand(1)
         jtype :=  hprof.readJType(in)
-        heap.AddInstance(jtype.Class, count * jtype.Size + 2 * heap.idSize) // include header size
+        heap.AddInstance(hid, jtype.Class, count * jtype.Size + 2 * heap.idSize) // include header size
         if heap.segReader != nil {
             heap.doInstance(offset, ObjectId(heap.NumObjects), jtype.Class)
         }

@@ -23,7 +23,6 @@
 package main
 
 import (
-    "log"
     "testing"
 )
 
@@ -52,7 +51,6 @@ func verifyGraph(t *testing.T, g *Graph, edges[][]int) {
         node := ObjectId(list[0])
         expected := list[1:]
         var actual []int
-        log.Printf("checking node %d\n", node)
         for n, pos := g.OutEdges(node); pos != 0; n, pos = g.NextOutEdge(pos) {
             actual = append(actual, int(n))
         }

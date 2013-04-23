@@ -74,10 +74,10 @@ func NewHisto(numClasses, numObjects uint32) *Histo {
 //
 func (h *Histo) Add(oid ObjectId, class *ClassDef, size uint32) {
     id := uint32(oid)
-    if h.known.has(id) {
+    if h.known.Has(id) {
         return
     }
-    h.known.set(id)
+    h.known.Set(id)
     slot := h.counts[class.Cid]
     if slot == nil {
         slot = &ClassCount{name: []byte(class.Name)}

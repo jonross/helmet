@@ -27,32 +27,23 @@ import (
     "testing"
 )
 
-func TestDemangle(t *testing.T) {
-    try := func(input, wanted string) {
-        result := Demangle(input)
-        if result != wanted {
-            t.Errorf("For %s wanted %s but got %s\n", input, wanted, result)
-        }
-    }
-    try("[[I", "int[][]")
-    try("[Lcom/foo/Bar;", "com.foo.Bar[]")
-    try("com/foo/Bar", "com.foo.Bar")
-}
+func TestObjectMap(t *testing.T) {
 
-func TestBitSet(t *testing.T) {
-    var flags [1000000]bool
-    bits := NewBitSet(uint32(len(flags)))
-    for i, _ := range flags {
-        bits.Set(uint32(i))
-        if rand.Int() % 2 == 0 {
-            flags[i] = true
-        } else {
-            bits.Clear(uint32(i))
-        }
+    var hids [1000000]HeapId
+    var om ObjectMap
+
+    lastHid := HeapId(0)
+    for i, _ := range hids {
+        lastHid += 1 + HeapId(rand.Int63n(1000))
+        om.Add(lastHid, ObjectId(i + 1))
+        hids[i] = lastHid
     }
-    for i, flag := range flags {
-        if bits.Has(uint32(i)) != flag {
-            t.Fatalf("Bit %d should be %v but is %v\n", i, flag, bits.Has(uint32(i)))
+
+    om.PostProcess()
+    for i, hid := range hids {
+        oid := om.Get(hid)
+        if oid != ObjectId(i + 1) {
+            t.Fatalf("Expected %d -> %d but was %d\n", hid, i + 1, oid)
         }
     }
 }

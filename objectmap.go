@@ -24,46 +24,65 @@ package main
 
 import (
     "log"
+    "sync"
 )
 
 const MaxHeapBits = 36
 const MaxHeapId = HeapId(1 << MaxHeapBits - 1)
+const NumSlots = 1 << (MaxHeapBits - 16)
 
 // Maps native heap ids to ObjectIds.  To save space we pay attention to only the
 // lower 36 bits of the HID (which handles heaps up to 68G.)  We then have 1<<20
 // maps, each of which maps the low 16 bits of the HID for the same high 20 bits.
 //
-type ObjectMap struct {
-    mappings []map[uint16]ObjectId
-    heapIds [][]uint64
+type ObjectMap [NumSlots]*omSlot
+
+type omSlot struct {
+    // Start by just saving the heap ids
+    heapIds []uint16
+    // and object ids
+    objectIds []ObjectId
+    // and later we'll put them in a map
+    mapping map[uint16]ObjectId
 }
 
-func MakeObjectMap() *ObjectMap {
-    numMaps := 1 << (MaxHeapBits - 16)
-    heapIds := [][]uint64{make([]uint64, 0, 100000)}
-    return &ObjectMap{make([]map[uint16]ObjectId, numMaps, numMaps), heapIds}
-}
-
-func (m *ObjectMap) add(hid HeapId, oid ObjectId) {
+func (m *ObjectMap) Add(hid HeapId, oid ObjectId) {
     if hid > MaxHeapId {
-        log.Fatalf("Heap ID %d too big\n", hid)
+        log.Fatalf("Heap ID %x too big\n", hid)
     }
-    slot := hid >> 16
-    mapping := m.mappings[slot]
-    if mapping == nil {
-        m.mappings[slot] = make(map[uint16]ObjectId)
-        mapping = m.mappings[slot]
+    index := hid >> 16
+    slot := m[index]
+    if slot == nil {
+        slot = &omSlot{}
+        m[index] = slot
     }
-    m.heapIds = xappend64(m.heapIds, uint64(hid))
-    return // TODO put back
-    mapping[uint16(hid & 0xFFFF)] = oid
+    slot.heapIds = append(slot.heapIds, uint16(hid & 0xFFFF))
+    slot.objectIds = append(slot.objectIds, oid)
 }
 
-func (m * ObjectMap) get(hid HeapId) ObjectId {
-    slot := hid >> 16
-    mapping := m.mappings[slot]
-    if mapping != nil {
-        return mapping[uint16(hid & 0xFFFF)]
+func (m *ObjectMap) PostProcess() {
+    var wg sync.WaitGroup
+    for _, slot := range m {
+        if slot != nil {
+            wg.Add(1)
+            go func(slot *omSlot) {
+                slot.mapping = make(map[uint16]ObjectId, len(slot.heapIds))
+                for i, hid := range slot.heapIds {
+                    slot.mapping[hid] = slot.objectIds[i]
+                }
+                slot.heapIds = nil
+                slot.objectIds = nil
+                wg.Done()
+            }(slot)
+        }
+    }
+    wg.Wait()
+}
+
+func (m *ObjectMap) Get(hid HeapId) ObjectId {
+    slot := m[hid >> 16]
+    if slot != nil {
+        return slot.mapping[uint16(hid & 0xFFFF)]
     }
     return 0
 }
