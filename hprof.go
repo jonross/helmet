@@ -147,7 +147,7 @@ func (hprof *HProfReader) read(in *MappedSection, options *HeapOptions) *Heap {
     heap.PostProcess()
 
     log.Printf("%d records, %d UTF8\n", numRecords, numStrings)
-    log.Printf("%d objects\n", heap.NumObjects)
+    log.Printf("%d objects\n", heap.MaxObjectId)
 
     return heap
 }
@@ -307,7 +307,7 @@ func (hprof *HProfReader) readInstance(in *MappedSection) {
     heap.AddInstance(hid, class, length + heap.idSize) // include object monitor
 
     if heap.segReader != nil {
-        heap.doInstance(offset, ObjectId(heap.NumObjects), class)
+        heap.doInstance(offset, heap.MaxObjectId, class)
     }
 
     in.Skip(length)
@@ -337,7 +337,7 @@ func (hprof *HProfReader) readArray(in *MappedSection, isObjects bool) {
         class := heap.HidClass(hprof.readId(in))
         heap.AddInstance(hid, class, (count + 2) * hprof.idSize) // include header size
         if heap.segReader != nil {
-            heap.doInstance(offset, ObjectId(heap.NumObjects), class)
+            heap.doInstance(offset, heap.MaxObjectId, class)
         }
         in.Skip(count * hprof.idSize)
     } else {
@@ -345,7 +345,7 @@ func (hprof *HProfReader) readArray(in *MappedSection, isObjects bool) {
         jtype :=  hprof.readJType(in)
         heap.AddInstance(hid, jtype.Class, count * jtype.Size + 2 * heap.idSize) // include header size
         if heap.segReader != nil {
-            heap.doInstance(offset, ObjectId(heap.NumObjects), jtype.Class)
+            heap.doInstance(offset, heap.MaxObjectId, jtype.Class)
         }
         in.Skip(count * jtype.Size)
     }

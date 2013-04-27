@@ -50,8 +50,8 @@ type Heap struct {
     classNames map[HeapId]HeapId
     // how many class IDs have we assigned
     NumClasses uint32
-    // how many object IDs have we assigned
-    NumObjects uint32
+    // highect object ID assigned
+    MaxObjectId ObjectId
     // heap IDs of GC roots
     gcRoots []HeapId
     // maps java value type tags to JType objects
@@ -70,8 +70,14 @@ type Heap struct {
     objectMap ObjectMap
     // packages to search for unqualified class names
     autoPrefixes []string
+    // classes to skip during graph searches
+    skipNames []string
+    // skip ID of objects with classes matched by skipNames
+    skipIds []int
     // concurrent heap segment reader
     *segReader
+    // object graph
+    *Graph
 }
 
 // Processing options.
@@ -94,7 +100,7 @@ func NewHeap(reader *HProfReader, options *HeapOptions) *Heap {
     heap.classesByName = make(map[string]*ClassDef, 50000)
     heap.classesByHid = make(map[HeapId]*ClassDef, 50000)
 
-    heap.NumObjects = 0
+    heap.MaxObjectId = 0
 
     // TODO size accurately
     heap.objectCids = make([]ClassId, 1, 10000000) // entry[0] not used
@@ -175,10 +181,10 @@ func (heap *Heap) addClass(name string, hid HeapId, superHid HeapId, fieldNames 
 }
 
 func (heap *Heap) AddInstance(hid HeapId, class *ClassDef, size uint32) {
-    heap.NumObjects++
+    heap.MaxObjectId++
     heap.objectCids = append(heap.objectCids, class.Cid)
     heap.objectSizes = append(heap.objectSizes, size)
-    heap.objectMap.Add(hid, ObjectId(heap.NumObjects))
+    heap.objectMap.Add(hid, heap.MaxObjectId)
 }
 
 // Return the ClassDef with the given name, or nil if none.
@@ -240,3 +246,79 @@ func (heap *Heap) OidClass(oid ObjectId) *ClassDef {
 func (heap *Heap) OidSize(oid ObjectId) uint32 {
     return heap.objectSizes[oid]
 }
+
+// Add a (possibly wildcard) class name to the list of classes to be skipped
+// during graph searches.  Must then call ProcessSkips before the next search.
+//
+func (heap *Heap) AddSkip(name string) {
+    heap.skipNames = append(heap.skipNames, name)
+    heap.skipIds = nil
+}
+
+// Return a bitset with class IDs of classes matching a type wildcard turned on.
+//
+func (heap *Heap) CidsMatching(name string) BitSet {
+    bits := NewBitSet(heap.NumClasses + 1)
+    heap.WithClassesMatching(name, func(class *ClassDef) {
+        bits.Set(uint32(class.Cid))
+    })
+    return bits
+}
+
+// Execute a function for each class matching a type wildcard.
+//
+func (heap *Heap) WithClassesMatching(name string, f func(*ClassDef)) {
+    isWild := strings.HasSuffix(name, "*") // TODO: do better, maybe regexp
+    if isWild {
+        name = name[:len(name)-1]
+    }
+    for _, class := range heap.classes[1:] {
+        var match bool
+        if isWild {
+            match = strings.HasPrefix(class.Name, name)
+        } else {
+            match = class.Name == name
+        }
+        if match {
+            f(class)
+        }
+    }
+}
+
+// Assign a unique ID to every object whose class is skipped.  This allows the
+// graph search to maintain a piece of information for skipped objects only
+// rather than also having an empty slot for non-skipped objects.
+//
+func (heap *Heap) ProcessSkips() {
+
+    for _, class := range heap.classes[1:] {
+        class.Skip = false
+    }
+
+    numSkips := uint32(0)
+    for _, name := range heap.skipNames {
+        heap.WithClassesMatching(name, func(class *ClassDef) {
+            class.Skip = true
+            numSkips += class.NumInstances
+        })
+    }
+
+    if heap.skipIds == nil {
+        heap.skipIds = make([]int, heap.MaxObjectId + 1)
+    }
+
+    skipId := 1
+    for oid := ObjectId(1); oid <= heap.MaxObjectId; oid++ {
+        if heap.OidClass(oid).Skip {
+            heap.skipIds[oid] = skipId
+            skipId++
+        } else {
+            heap.skipIds[oid] = 0
+        }
+    }
+}
+
+func (heap *Heap) SkipIdOf(oid ObjectId) int {
+    return heap.skipIds[oid]
+}
+

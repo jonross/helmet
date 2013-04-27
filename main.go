@@ -64,9 +64,8 @@ func main() {
     heap := ReadHeapDump(flag.Arg(0), options)
 
     if *doHisto {
-        histo := NewHisto(heap.NumClasses, heap.NumObjects)
-        for i := uint32(1); i <= heap.NumObjects; i++ {
-            oid := ObjectId(i)
+        histo := NewHisto(heap.NumClasses, uint32(heap.MaxObjectId))
+        for oid := ObjectId(1); oid <= heap.MaxObjectId; oid++ {
             class := heap.OidClass(oid)
             histo.Add(oid, class, heap.OidSize(oid)) // TODO: need sizes
         }

@@ -61,6 +61,8 @@ type ClassDef struct {
     span uint32
     // offsets of reference fields, including superclases; returned by refOffsets()
     refs []uint32
+    // can instances of this class be skipped in graph searches
+    Skip bool
 }
 
 // One of these for each non-static member in a class def
@@ -89,12 +91,12 @@ type JType struct {
 
 // Create a ClassDef given the minimal required information.
 //
-func makeClassDef(heap *Heap, name string, cid ClassId, hid HeapId, superHid HeapId, 
+func makeClassDef(heap *Heap, name string, cid ClassId, hid HeapId, superHid HeapId,
                     fields []*Field, staticRefs []HeapId) *ClassDef {
     isRoot := name == "java.lang.Object" || name == "java/lang/Object"
-    return &ClassDef{cooked: false, heap: heap, Name: name, Cid: ClassId(cid), 
-                        Hid: hid, SuperHid: superHid, super: nil, fields: fields, 
-                        IsRoot: isRoot, NumInstances: 0, NumBytes: 0, span: 0, 
+    return &ClassDef{cooked: false, heap: heap, Name: name, Cid: ClassId(cid),
+                        Hid: hid, SuperHid: superHid, super: nil, fields: fields,
+                        IsRoot: isRoot, NumInstances: 0, NumBytes: 0, span: 0,
                         refs: nil, staticRefs: staticRefs}
 }
 
