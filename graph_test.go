@@ -30,21 +30,8 @@ func TestEdges(t *testing.T) {
     verifyGraph(t, makeGraph(edges_2), edges_2)
 }
 
-// Generate a sample graph.
-//
-func makeGraph(edges [][]int) *Graph {
-    var src, dst []ObjectId
-    for _, list := range edges {
-        for _, node := range list[1:] {
-            src = append(src, ObjectId(list[0]))
-            dst = append(dst, ObjectId(node))
-        }
-    }
-    return NewGraph(src, dst)
-}
-
-// Verify a graph against its edge data.  Note that the edge filling
-// approach reverses the initial edge order.
+// Verify a graph against its raw edge data.  Note that the EdgSet filling
+// approach in graph.go reverses the initial edge order.
 //
 func verifyGraph(t *testing.T, g *Graph, edges[][]int) {
     for _, list := range edges {
@@ -61,9 +48,21 @@ func verifyGraph(t *testing.T, g *Graph, edges[][]int) {
     }
 }
 
-// Sample edge data
+// Generate a sample graph.
 //
+func makeGraph(edges [][]int) *Graph {
+    var src, dst []ObjectId
+    for _, list := range edges {
+        for _, node := range list[1:] {
+            src = append(src, ObjectId(list[0]))
+            dst = append(dst, ObjectId(node))
+        }
+    }
+    return NewGraph(src, dst)
+}
 
+// Sample edge data for use with makeGraph
+//
 var edges_2 = [][]int {
     []int{1, 2, 19, 23},
     []int{2, 3, 6},

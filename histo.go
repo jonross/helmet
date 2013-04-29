@@ -46,7 +46,7 @@ type ClassCount struct {
 }
 
 // Support sort weirdness. :-(
-
+//
 type classCounts []*ClassCount
 func (cc classCounts) Len() int { return len(cc) }
 func (cc classCounts) Swap(i, j int) { cc[i], cc[j] = cc[j], cc[i] }
@@ -89,7 +89,6 @@ func (h *Histo) Add(oid ObjectId, class *ClassDef, size uint32) {
 
 // Print the histogram.
 //
-
 func (h *Histo) Print(out io.Writer) {
 
     // Some classes have no instances

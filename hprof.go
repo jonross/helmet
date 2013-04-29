@@ -24,24 +24,30 @@ package main
 
 import (
     "log"
+    "runtime"
 )
 
+// Responsible for reading an HPROF binary heap dump and handing information off
+// to a Heap instance.  See also SegReader.
+//
 type HProfReader struct {
+    // From command-line options
+    *Options
     // Yes that
     Filename string
     // And that
     *MappedFile
     // Size of a native ID on the heap, 4 or 8
-    idSize uint32
-    // true if idSize is 8
+    IdSize uint32
+    // true if IdSize is 8
     longIds bool
     // target heap tracker
     *Heap
-    // track references?
-    needRefs bool
+    // segment rader, if needRefs is true
+    *segReader
 }
 
-func ReadHeapDump(filename string, options *HeapOptions) *Heap {
+func ReadHeapDump(filename string, options *Options) *Heap {
 
     mappedFile, err := MapFile(filename)
     if err != nil {
@@ -60,16 +66,20 @@ func ReadHeapDump(filename string, options *HeapOptions) *Heap {
     }
 
     hprof := &HProfReader{
+        Options: options,
         Filename: filename,
         MappedFile: mappedFile,
-        needRefs: options.NeedRefs,
     }
 
-    hprof.idSize = in.GetUInt32()
-    if hprof.idSize != 4 && hprof.idSize != 8 {
-        log.Fatalf("Unknown reference size %d\n", hprof.idSize)
+    if options.NeedRefs {
+        hprof.segReader = makeSegReader(hprof)
     }
-    hprof.longIds = hprof.idSize == 8
+
+    hprof.IdSize = in.GetUInt32()
+    if hprof.IdSize != 4 && hprof.IdSize != 8 {
+        log.Fatalf("Unknown reference size %d\n", hprof.IdSize)
+    }
+    hprof.longIds = hprof.IdSize == 8
     in.Skip(8) // skip timestamp
 
     return hprof.read(in, options)
@@ -78,16 +88,16 @@ func ReadHeapDump(filename string, options *HeapOptions) *Heap {
 // Complete heap reader in one call.  Most of the error conditions (like
 // unresolvable classes) cause panics BTW.
 //
-func (hprof *HProfReader) read(in *MappedSection, options *HeapOptions) *Heap {
+func (hprof *HProfReader) read(in *MappedSection, options *Options) *Heap {
 
-    hprof.Heap = NewHeap(hprof, options)
+    hprof.Heap = NewHeap(hprof.IdSize)
     heap := hprof.Heap
-
-    // TODO: keep input struct constant, don't return different one
 
     headerSize := uint32(9)
     numRecords := 0
     numStrings := 0
+
+    // TODO: keep input struct constant, don't return different one
 
     for in.Demand(headerSize) != nil {
 
@@ -103,18 +113,16 @@ func (hprof *HProfReader) read(in *MappedSection, options *HeapOptions) *Heap {
         switch tag {
             case 0x01: // UTF8
                 numStrings++
-                hid := heap.readId(in)
-                str := in.GetString(length - heap.idSize)
-                heap.strings[hid] = str
-                // log.Printf("%x -> %s\n", hid, heap.strings[hid])
+                hid := hprof.readId(in)
+                str := in.GetString(length - hprof.IdSize)
+                heap.AddString(hid, str)
 
             case 0x02: // LOAD_CLASS
                 in.Skip(4) // skip classSerial
-                classHid := heap.readId(in)
+                classHid := hprof.readId(in)
                 in.Skip(4) // skip stackSerial
-                nameHid := heap.readId(in)
-                heap.classNames[classHid] = nameHid
-                // log.Printf("%x -> %x -> %s\n", classHid, nameHid, heap.strings[nameHid])
+                nameHid := hprof.readId(in)
+                heap.AddClassName(classHid, nameHid)
 
             case 0x0c, 0x1c: // HEAP_DUMP, HEAP_DUMP_SEGMENT
                 log.Printf("Heap dump or segment of %d MB", length / 1048576)
@@ -144,7 +152,9 @@ func (hprof *HProfReader) read(in *MappedSection, options *HeapOptions) *Heap {
         }
     }
 
-    heap.PostProcess()
+    heap.PostProcess(hprof.segReader)
+    hprof.segReader = nil // allow GC
+    runtime.GC()
 
     log.Printf("%d records, %d UTF8\n", numRecords, numStrings)
     log.Printf("%d objects\n", heap.MaxObjectId)
@@ -171,7 +181,7 @@ func (hprof *HProfReader) readSegment(in *MappedSection, length uint32) int {
             case 0x20: // CLASS_DUMP
                 hprof.readClassDump(in)
             case 0x01: // ROOT_JNI_GLOBAL
-                hprof.readGCRoot(in, "JNI global", hprof.idSize)
+                hprof.readGCRoot(in, "JNI global", hprof.IdSize)
             case 0x02: // ROOT_JNI_LOCAL
                 hprof.readGCRoot(in, "JNI local", 8)
             case 0x03: // ROOT_JAVA_FRAME
@@ -201,23 +211,35 @@ func (hprof *HProfReader) readClassDump(in *MappedSection) {
 
     // Header
 
-    in.Demand(7 * hprof.idSize + 8)
-    hid := hprof.readId(in) // hid
-    in.Skip(4) // stack serial
-    superHid := hprof.readId(in) // superHid
-    in.Skip(5 * hprof.idSize) // skip class loader ID, signer ID, protection domain ID, 2 reserved
-    in.Skip(4) // instance size
+    // header is
+    //
+    // class heap id    HeapId
+    // stack serial     uint32      (ignored)
+    // superclass id    HeapId
+    // classloader id   HeapId      (ignored)
+    // signer id        HeapId      (ignored)
+    // prot domain id   HeapId      (ignored)
+    // reserved 1       HeapId      (ignored)
+    // reserved 2       HeapId      (ignored)
+    // instance size    uint32      TODO: use this?
 
-    // Class name was read early as a UTF8 record
+    in.Demand(7 * hprof.IdSize + 8)
+    hid := hprof.readId(in) // hid
+    in.Skip(4)
+    superHid := hprof.readId(in) // superHid
+    in.Skip(5 * hprof.IdSize)
+    in.Skip(4)
+
+    // Class name was read earlier as a UTF8 record
 
     heap := hprof.Heap
-    nameId, ok := heap.classNames[hid]
-    if ! ok {
+    nameId := heap.ClassNameId(hid)
+    if nameId == 0 {
         log.Fatalf("Class with hid %d has no name mapping\n", hid)
     }
 
-    name, ok := heap.strings[nameId]
-    if ! ok {
+    name := heap.StringWithId(nameId)
+    if name == "" {
         log.Fatalf("Class name id %d for class hid %d has no mapping\n", hid)
     }
 
@@ -241,7 +263,7 @@ func (hprof *HProfReader) readClassDump(in *MappedSection) {
     staticRefs := []HeapId{}
 
     for i := 0; i < int(numStatics); i++ {
-        in.Skip(hprof.idSize) // field name ID
+        in.Skip(hprof.IdSize) // field name ID
         jtype := hprof.readJType(in)
         if jtype.IsObj {
             toHid := hprof.readId(in)
@@ -261,8 +283,8 @@ func (hprof *HProfReader) readClassDump(in *MappedSection) {
     fieldTypes := make([]*JType, numFields, numFields)
 
     for i := 0; i < int(numFields); i++ {
-        fieldName, ok := heap.strings[hprof.readId(in)]
-        if ! ok {
+        fieldName := heap.StringWithId(hprof.readId(in))
+        if fieldName == "" {
             log.Fatalf("No name for field %d in class with hid %d\n", i, hid)
             fieldName = "UNKNOWN"
         }
@@ -270,16 +292,16 @@ func (hprof *HProfReader) readClassDump(in *MappedSection) {
         fieldTypes[i] = hprof.readJType(in)
     }
 
-    heap.addClass(name, hid, superHid, fieldNames, fieldTypes, staticRefs)
+    heap.AddClass(name, hid, superHid, fieldNames, fieldTypes, staticRefs)
 }
 
 // Read a GC root.  This has the HID at the start followed by some amount
 // of per-root data that we don't use.
 //
 func (hprof *HProfReader) readGCRoot(in *MappedSection, kind string, skip uint32) {
-    in.Demand(hprof.idSize + skip)
+    in.Demand(hprof.IdSize + skip)
     hid := hprof.readId(in)
-    // TODO fix
+    // TODO verify gc roots are in heap
     hprof.Heap.gcRoots = append(hprof.Heap.gcRoots, hid)
     in.Skip(skip)
 }
@@ -299,15 +321,15 @@ func (hprof *HProfReader) readInstance(in *MappedSection) {
     // class id         HeapId
     // length           uint32
 
-    in.Demand(8 + 2 * hprof.idSize)
+    in.Demand(8 + 2 * hprof.IdSize)
     hid := hprof.readId(in)
     in.Skip(4) // stack serial
     class := heap.HidClass(hprof.readId(in))
     length := in.GetUInt32()
-    heap.AddInstance(hid, class, length + heap.idSize) // include object monitor
+    heap.AddInstance(hid, class, length + hprof.IdSize) // include object monitor
 
-    if heap.segReader != nil {
-        heap.doInstance(offset, heap.MaxObjectId, class)
+    if hprof.segReader != nil {
+        hprof.doInstance(offset, heap.MaxObjectId, class)
     }
 
     in.Skip(length)
@@ -327,25 +349,27 @@ func (hprof *HProfReader) readArray(in *MappedSection, isObjects bool) {
     // stack serial     uint32      (ignored)
     // # elements       uint32
 
-    in.Demand(hprof.idSize + 8)
+    in.Demand(hprof.IdSize + 8)
     hid := hprof.readId(in)
     in.Skip(4) // stack serial
     count := in.GetUInt32()
 
+    // TODO heap.addPrimitiveArray(id, jtype, offset, count * jtype.size + 2 * heap.IdSize)
+
     if isObjects {
-        in.Demand(hprof.idSize)
+        in.Demand(hprof.IdSize)
         class := heap.HidClass(hprof.readId(in))
-        heap.AddInstance(hid, class, (count + 2) * hprof.idSize) // include header size
-        if heap.segReader != nil {
-            heap.doInstance(offset, heap.MaxObjectId, class)
+        heap.AddInstance(hid, class, (count + 2) * hprof.IdSize) // include header size
+        if hprof.segReader != nil {
+            hprof.doInstance(offset, heap.MaxObjectId, class)
         }
-        in.Skip(count * hprof.idSize)
+        in.Skip(count * hprof.IdSize)
     } else {
         in.Demand(1)
         jtype :=  hprof.readJType(in)
-        heap.AddInstance(hid, jtype.Class, count * jtype.Size + 2 * heap.idSize) // include header size
-        if heap.segReader != nil {
-            heap.doInstance(offset, heap.MaxObjectId, jtype.Class)
+        heap.AddInstance(hid, jtype.Class, count * jtype.Size + 2 * hprof.IdSize) // include header size
+        if hprof.segReader != nil {
+            hprof.doInstance(offset, heap.MaxObjectId, jtype.Class)
         }
         in.Skip(count * jtype.Size)
     }
@@ -365,10 +389,10 @@ func (hprof *HProfReader) readId(in *MappedSection) HeapId {
 //
 func (hprof *HProfReader) readJType(in *MappedSection) *JType {
     tag := int(in.GetByte())
-    if tag < 0 || tag >= len(hprof.jtypes) {
+    if tag < 0 || tag >= len(hprof.Jtypes) {
         log.Fatalf("Unknown basic type %d at %d\n", tag, in.Offset() - 1)
     }
-    jtype := hprof.jtypes[tag]
+    jtype := hprof.Jtypes[tag]
     if jtype == nil {
         log.Fatalf("Unknown basic type %d at %d\n", tag, in.Offset() - 1)
     }

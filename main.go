@@ -30,6 +30,14 @@ import (
     "runtime/pprof"
 )
 
+// Processing options.
+//
+
+type Options struct {
+    // do we need the reference graph
+    NeedRefs bool
+}
+
 func main() {
 
     runtime.GOMAXPROCS(runtime.NumCPU())
@@ -56,7 +64,7 @@ func main() {
             log.Fatal("Extra args following heap filename")
     }
 
-    options := &HeapOptions{}
+    options := &Options{}
     if ! *doHisto {
         options.NeedRefs = true
     }
@@ -64,7 +72,7 @@ func main() {
     heap := ReadHeapDump(flag.Arg(0), options)
 
     if *doHisto {
-        histo := NewHisto(heap.NumClasses, uint32(heap.MaxObjectId))
+        histo := NewHisto(heap.MaxClassId, uint32(heap.MaxObjectId))
         for oid := ObjectId(1); oid <= heap.MaxObjectId; oid++ {
             class := heap.OidClass(oid)
             histo.Add(oid, class, heap.OidSize(oid)) // TODO: need sizes

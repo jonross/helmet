@@ -26,19 +26,25 @@ import (
     "sync"
 )
 
+// Implements an adjacency-list graph representation with all lists merged to a
+// single slice for minimal mark/sweep overhead.
+//
 type Graph struct {
     // out edges per node
-    outs *edgeSet
+    outs *EdgeSet
     // in edges per node
-    ins *edgeSet
+    ins *EdgeSet
 }
 
-type edgeSet struct {
-    // Merged edge list of all nodes
+// In/out edges use an identical structure, just with the edge direction reversed.
+// TODO: data compression on offsets; use bitset for isStart
+//
+type EdgeSet struct {
+    // Merged edge list of all adjacent nodes
     edges []ObjectId
     // Offset of each node's edges in merged list, or 0 if none
     offsets []int
-    // Indicates which offsets are the start of an edge set
+    // Indicates which offsets are the start of a node's edge list
     isStart []bool
 }
 
@@ -127,7 +133,7 @@ func NewGraphWithCounts(src []ObjectId, dst []ObjectId, srcCounts []int, dstCoun
 
 // Walk the out edges of a node, e.g.
 //
-//     for pos, node := g.OutEdges(n); pos != 0; pos, node := g.NextOutEdge(pos) {
+//     for node, pos := g.OutEdges(n); pos != 0; node, pos := g.NextOutEdge(pos) {
 //         ...
 //     }
 //
@@ -141,7 +147,7 @@ func (g *Graph) NextOutEdge(pos int) (ObjectId, int) {
 
 // Walk the in edges of a node, e.g.
 //
-//     for pos, node := g.InEdges(n); pos != 0; pos, node := g.NextInEdge(pos) {
+//     for node, pos := g.InEdges(n); pos != 0; node, pos := g.NextInEdge(pos) {
 //         ...
 //     }
 //
@@ -153,17 +159,18 @@ func (g *Graph) NextInEdge(pos int) (ObjectId, int) {
     return g.ins.next(pos)
 }
 
-// Create an edge set.  Overwrites the count array as a side effect.
+// Create an edge set.  Overwrites the count array as a side effect (sorry but
+// these get huge and I don't want to waste temp memory on a copy.)
 //
-func newEdgeSet(src []ObjectId, dst []ObjectId, counts []int) *edgeSet {
+func newEdgeSet(src []ObjectId, dst []ObjectId, counts []int) *EdgeSet {
 
-    e := &edgeSet {
+    e := &EdgeSet {
         edges: make([]ObjectId, len(src) + 1), // 1 entry per edge, index 0 not used
         isStart: make([]bool, len(src) + 2), // matches edges but also need a terminator entry
         offsets: make([]int, len(counts)), // 1 entry per node
     }
 
-    // Determine the offset of the start of the edge list for each ndoe
+    // Determine the offset of the start of the edge list for each node
 
     offset := 1
     for node, count := range counts {
@@ -185,9 +192,10 @@ func newEdgeSet(src []ObjectId, dst []ObjectId, counts []int) *edgeSet {
     return e
 }
 
-// Start walking an edge set from the specified node.
+// Start walking an edge set from the specified node.  If position == 0
+// there are no edges from this node.
 //
-func (e *edgeSet) walk(node ObjectId) (ObjectId, int) {
+func (e *EdgeSet) walk(node ObjectId) (ObjectId, int) {
     offset := e.offsets[node]
     if offset == 0 {
         return 0, 0
@@ -195,12 +203,14 @@ func (e *edgeSet) walk(node ObjectId) (ObjectId, int) {
     return e.edges[offset], offset
 }
 
-func (e *edgeSet) next(offset int) (ObjectId, int) {
+// Continue walking an edge set from the previous position.  Returns
+// position == 0 if there are no more edges.
+//
+func (e *EdgeSet) next(offset int) (ObjectId, int) {
     offset++
     if e.isStart[offset] {
         return 0, 0
     }
     return e.edges[offset], offset
 }
-
 

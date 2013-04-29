@@ -79,7 +79,7 @@ type Finder struct {
     member *Finder
     // what pass through this step is this
     pass int
-    // what objects have been skipped, as of what pass; FIXME
+    // what objects have been skipped, as of what pass
     skipped []int
 }
 
@@ -100,7 +100,7 @@ func SearchHeap(heap *Heap, query Query, coll Collector) {
             stack: make([]ObjectId, 0, 10000),
             next: finder,
             pass: 0,
-            skipped: make([]int, heap.MaxObjectId + 1), // FIXME
+            skipped: make([]int, heap.MaxObjectId + 1),
         }
         finder = prev
         if query[i].role == StepGroup {
@@ -174,7 +174,7 @@ func (finder *Finder) doCheck(oid ObjectId) {
         // <<- MyObject y' and the strings are held in a data structure whose
         // internals are elided, we will ignore all paths from all x to y after
         // the first one.  Unfortunately for heaps with large such structures,
-        // the skipped set can get pretty big.  FIXME.
+        // the skipped set can get pretty big.  TODO: make less expensive
         explore := finder.skipped[oid] < finder.pass
         finder.skipped[oid] = finder.pass
         if explore {

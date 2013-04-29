@@ -32,6 +32,8 @@ import (
 // in parallel
 //
 type segReader struct {
+    // parent reader
+    *HProfReader
     // All active & inactive workers
     workers []*segWorker
     // Unused workers are waiting to be taken off this channel
@@ -45,8 +47,6 @@ type segReader struct {
 type segWorker struct {
     // unique id for debugging
     id int
-    // parent heap
-    heap *Heap
     // parent reader
     *segReader
     // ID of first object
@@ -63,9 +63,10 @@ type segWorker struct {
 
 // Create a segment reader with one worker per CPU.
 //
-func makeSegReader(heap *Heap) *segReader {
+func makeSegReader(hr *HProfReader) *segReader {
 
     reader := &segReader{
+        HProfReader: hr,
         workers: make([]*segWorker, runtime.NumCPU()),
         avail: make(chan *segWorker),
         active: nil,
@@ -79,7 +80,6 @@ func makeSegReader(heap *Heap) *segReader {
         for i, _ := range reader.workers {
             reader.workers[i] = &segWorker{
                 id: i + 1,
-                heap: heap,
                 segReader: reader,
                 firstOid: 0,
                 classes: make([]*ClassDef, reader.batchSize),
@@ -130,7 +130,7 @@ func (reader *segReader) proceed(more bool) {
 func (worker *segWorker) process() {
     if worker.count > 0 {
         start := worker.offsets[0]
-        in := worker.heap.MappedFile.MapAt(start)
+        in := worker.MappedFile.MapAt(start)
         oid := worker.firstOid
         for i := 0; i < worker.count; i++ {
             in.Skip(uint32(worker.offsets[i] - in.Offset()))
@@ -177,8 +177,7 @@ func (worker *segWorker) readInstance(in *MappedSection, oid ObjectId, class *Cl
     // class id         HeapId      (already known)
     // length           uint32
 
-    heap := worker.heap
-    in.Skip(4 + 2 * heap.idSize)
+    in.Skip(4 + 2 * worker.IdSize)
     in.Demand(4)
     length := in.GetUInt32()
 
@@ -187,16 +186,13 @@ func (worker *segWorker) readInstance(in *MappedSection, oid ObjectId, class *Cl
     end := start + uint64(length)
     cursor := uint32(0)
 
-    // TODO
-    // heap.addInstance(oid, class, start, length)
-
     for _, offset := range class.RefOffsets() {
         in.Skip(offset - cursor)
-        toHid := heap.readId(in)
+        toHid := worker.readId(in)
         if toHid != 0 {
             worker.refs.Add(oid, toHid)
         }
-        cursor += heap.idSize
+        cursor += worker.IdSize
     }
 
     in.Skip(uint32(end - in.Offset()))
@@ -213,28 +209,24 @@ func (worker *segWorker) readArray(in *MappedSection, oid ObjectId, isObjects bo
     // stack serial     uint32      (ignored)
     // # elements       uint32
 
-    heap := worker.heap
-    in.Skip(heap.idSize + 4)
+    in.Skip(worker.IdSize + 4)
     in.Demand(4)
     count := in.GetUInt32()
 
     if (isObjects) {
-        in.Skip(heap.idSize) // already know class
-        in.Demand(count * heap.idSize)
+        in.Skip(worker.IdSize) // already know class
+        in.Demand(count * worker.IdSize)
         for i := uint32(0); i < count; i++ {
-            toHid := heap.readId(in)
+            toHid := worker.readId(in)
             if toHid != 0 {
                 worker.refs.Add(oid, toHid)
             }
         }
     } else {
         in.Demand(1)
-        jtype := heap.readJType(in)
+        jtype := worker.readJType(in)
         in.Skip(count * jtype.Size)
     }
-
-    // TODO
-    // heap.addPrimitiveArray(id, jtype, offset, count * jtype.size + 2 * heap.idSize)
 }
 
 
