@@ -32,7 +32,6 @@ import (
 
 // Processing options.
 //
-
 type Options struct {
     // do we need the reference graph
     NeedRefs bool
@@ -64,9 +63,8 @@ func main() {
             log.Fatal("Extra args following heap filename")
     }
 
-    options := &Options{}
-    if ! *doHisto {
-        options.NeedRefs = true
+    options := &Options{
+        NeedRefs: ! *doHisto,
     }
 
     heap := ReadHeapDump(flag.Arg(0), options)
@@ -74,8 +72,8 @@ func main() {
     if *doHisto {
         histo := NewHisto(heap.MaxClassId, uint32(heap.MaxObjectId))
         for oid := ObjectId(1); oid <= heap.MaxObjectId; oid++ {
-            class := heap.OidClass(oid)
-            histo.Add(oid, class, heap.OidSize(oid)) // TODO: need sizes
+            class := heap.ClassOf(oid)
+            histo.Add(oid, class, heap.SizeOf(oid))
         }
         histo.Print(os.Stdout)
     }

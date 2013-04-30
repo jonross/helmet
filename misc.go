@@ -57,6 +57,8 @@ var prims = map[byte]string{
     'B': "byte", 'S': "short", 'I': "int", 'J': "long",
 }
 
+// A simple bit set, no bounds checking, no dynamic sizing, no nothing.
+//
 type BitSet []uint64
 
 func NewBitSet(size uint32) BitSet {
@@ -79,10 +81,11 @@ func (b BitSet) Has(i uint32) bool {
 // GC-friendly approach to building enormous arrays.  Start by making one e.g.
 //   aa = make([][]uint32, 0, 10000)
 // This continually appends to the last array in aa and grows aa as needed but
-// never copies the 2nd-level arrays, which is O(n**2) in the worst case.  I've
-// found this approach is 20% to 40% faster than a 1-D array.
+// never copies the 2nd-level arrays, which is O(n**2) in the worst case for 1-D
+// arrays + generates some large tracts of garbage.  I've found this approach 
+// is 20% to 40% faster than a plain slice.
 //
-func xappend32(aa [][]uint32, val uint32) [][]uint32 {
+func Append32(aa [][]uint32, val uint32) [][]uint32 {
     a := aa[len(aa)-1]
     if len(a) == cap(a) {
         a = make([]uint32, 0, len(a))
@@ -92,9 +95,9 @@ func xappend32(aa [][]uint32, val uint32) [][]uint32 {
     return aa
 }
 
-// See xappend32()
+// See Append32()
 //
-func xappend64(aa [][]uint64, val uint64) [][]uint64 {
+func Append64(aa [][]uint64, val uint64) [][]uint64 {
     a := aa[len(aa)-1]
     if len(a) == cap(a) {
         a = make([]uint64, 0, len(a))
@@ -104,9 +107,9 @@ func xappend64(aa [][]uint64, val uint64) [][]uint64 {
     return aa
 }
 
-// See xappend32()
+// See Append32()
 //
-func xappendOid(aa [][]ObjectId, val ObjectId) [][]ObjectId {
+func AppendOid(aa [][]ObjectId, val ObjectId) [][]ObjectId {
     a := aa[len(aa)-1]
     if len(a) == cap(a) {
         a = make([]ObjectId, 0, len(a))
@@ -116,9 +119,9 @@ func xappendOid(aa [][]ObjectId, val ObjectId) [][]ObjectId {
     return aa
 }
 
-// See xappend32()
+// See Append32()
 //
-func xappendHid(aa [][]HeapId, val HeapId) [][]HeapId {
+func AppendHid(aa [][]HeapId, val HeapId) [][]HeapId {
     a := aa[len(aa)-1]
     if len(a) == cap(a) {
         a = make([]HeapId, 0, len(a))

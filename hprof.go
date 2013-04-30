@@ -44,7 +44,7 @@ type HProfReader struct {
     // target heap tracker
     *Heap
     // segment rader, if needRefs is true
-    *segReader
+    *SegReader
 }
 
 func ReadHeapDump(filename string, options *Options) *Heap {
@@ -72,7 +72,7 @@ func ReadHeapDump(filename string, options *Options) *Heap {
     }
 
     if options.NeedRefs {
-        hprof.segReader = makeSegReader(hprof)
+        hprof.SegReader = NewSegReader(hprof)
     }
 
     hprof.IdSize = in.GetUInt32()
@@ -99,7 +99,7 @@ func (hprof *HProfReader) read(in *MappedSection, options *Options) *Heap {
 
     // TODO: keep input struct constant, don't return different one
 
-    for in.Demand(headerSize) != nil {
+    for in.Demand(headerSize) {
 
         numRecords++
         tag := in.GetByte()
@@ -152,8 +152,8 @@ func (hprof *HProfReader) read(in *MappedSection, options *Options) *Heap {
         }
     }
 
-    heap.PostProcess(hprof.segReader)
-    hprof.segReader = nil // allow GC
+    heap.PostProcess(hprof.SegReader)
+    hprof.SegReader = nil // allow GC
     runtime.GC()
 
     log.Printf("%d records, %d UTF8\n", numRecords, numStrings)
@@ -307,11 +307,11 @@ func (hprof *HProfReader) readGCRoot(in *MappedSection, kind string, skip uint32
 }
 
 // Read header for an object instance, then pass off required info
-// for segReader to handle it in the background.
+// for SegReader to handle it in the background.
 //
 func (hprof *HProfReader) readInstance(in *MappedSection) {
 
-    offset := in.Offset() -1 // segReader must read record tag again
+    offset := in.Offset() -1 // SegReader must read record tag again
     heap := hprof.Heap
 
     // header is
@@ -328,7 +328,7 @@ func (hprof *HProfReader) readInstance(in *MappedSection) {
     length := in.GetUInt32()
     heap.AddInstance(hid, class, length + hprof.IdSize) // include object monitor
 
-    if hprof.segReader != nil {
+    if hprof.SegReader != nil {
         hprof.doInstance(offset, heap.MaxObjectId, class)
     }
 
@@ -336,11 +336,11 @@ func (hprof *HProfReader) readInstance(in *MappedSection) {
 }
 
 // Read header for an array, then pass off required info
-// for segReader to handle it in the background.
+// for SegReader to handle it in the background.
 //
 func (hprof *HProfReader) readArray(in *MappedSection, isObjects bool) {
 
-    offset := in.Offset() - 1 // segReader must read record tag again
+    offset := in.Offset() - 1 // SegReader must read record tag again
     heap := hprof.Heap
 
     // header is
@@ -360,7 +360,7 @@ func (hprof *HProfReader) readArray(in *MappedSection, isObjects bool) {
         in.Demand(hprof.IdSize)
         class := heap.HidClass(hprof.readId(in))
         heap.AddInstance(hid, class, (count + 2) * hprof.IdSize) // include header size
-        if hprof.segReader != nil {
+        if hprof.SegReader != nil {
             hprof.doInstance(offset, heap.MaxObjectId, class)
         }
         in.Skip(count * hprof.IdSize)
@@ -368,9 +368,6 @@ func (hprof *HProfReader) readArray(in *MappedSection, isObjects bool) {
         in.Demand(1)
         jtype :=  hprof.readJType(in)
         heap.AddInstance(hid, jtype.Class, count * jtype.Size + 2 * hprof.IdSize) // include header size
-        if hprof.segReader != nil {
-            hprof.doInstance(offset, heap.MaxObjectId, jtype.Class)
-        }
         in.Skip(count * jtype.Size)
     }
 

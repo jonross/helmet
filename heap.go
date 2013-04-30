@@ -240,7 +240,7 @@ func (heap *Heap) ClassNamed(name string) *ClassDef {
 // Post-process the heap by incorporating references scanned by the concurrent
 // segment readers, and resolve heap IDs to synthetic object IDs.
 //
-func (heap *Heap) PostProcess(sr *segReader) {
+func (heap *Heap) PostProcess(sr *SegReader) {
 
     heap.objectMap.PostProcess()
 
@@ -266,21 +266,15 @@ func (heap *Heap) HidClass(hid HeapId) *ClassDef {
     return heap.classesByHid[hid]
 }
 
-// Return the ClassDef with the given heap id, or nil if none.
-//
-func (heap *Heap) CidClass(cid ClassId) *ClassDef {
-    return heap.classes[cid]
-}
-
 // Return the ClassDef for a given object id
 //
-func (heap *Heap) OidClass(oid ObjectId) *ClassDef {
+func (heap *Heap) ClassOf(oid ObjectId) *ClassDef {
     return heap.classes[heap.objectCids[oid]]
 }
 
 // Return the size for a given object id
 //
-func (heap *Heap) OidSize(oid ObjectId) uint32 {
+func (heap *Heap) SizeOf(oid ObjectId) uint32 {
     return heap.objectSizes[oid]
 }
 
@@ -346,7 +340,7 @@ func (heap *Heap) ProcessSkips() {
 
     skipId := 1
     for oid := ObjectId(1); oid <= heap.MaxObjectId; oid++ {
-        if heap.OidClass(oid).Skip {
+        if heap.ClassOf(oid).Skip {
             heap.skipIds[oid] = skipId
             skipId++
         } else {

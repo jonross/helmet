@@ -35,20 +35,20 @@ import (
 // a time, and we need to abstract away the case where code is reading data
 // and suddenly finds a value that runs over the end of a section.
 //
+// TODO: unit test
+//
 type MappedFile struct {
-    filename string
+    Filename string
     file *os.File
     // total size of the file
     Size uint64
-    // what have we mapped so far
-    sections [][]byte
 }
 
 // This represents a single mapped section on a MappedFile.
 //
 type MappedSection struct {
-    // Underlying MappedFile
-    mappedFile *MappedFile
+    // See above
+    *MappedFile
     // As returned by syscall.Mmap
     base []byte
     // Size of mapped section
@@ -64,39 +64,29 @@ type MappedSection struct {
 // Create a MappedFile.
 //
 func MapFile(filename string) (mf *MappedFile, err error) {
-    mf = &MappedFile{filename: filename, sections: [][]byte{}}
-    mf.file, err = os.Open(filename)
+    file, err := os.Open(filename)
     if err != nil {
-        mf.file.Close()
+        file.Close()
         return nil, err
     }
-    info, err := mf.file.Stat()
+    info, err := file.Stat()
     if err != nil {
-        mf.file.Close()
+        file.Close()
         return nil, err
     }
-    mf.Size = uint64(info.Size())
-    return
+    return &MappedFile{Filename: filename, file: file, Size: uint64(info.Size())}, nil
 }
 
 // Map the largest possible section starting at a given offset.  Normally this is called 
 // automatically by Demand().  Panics on failure since there is no recovery.
 //
 func (mf *MappedFile) MapAt(offset uint64) *MappedSection {
-    length := mf.Size - offset
-    if length > uint64(math.MaxInt32) {
-        length = uint64(math.MaxInt32)
-    }
-    bytes, err := syscall.Mmap(int(mf.file.Fd()), int64(offset), int(length),
-                               syscall.PROT_READ, syscall.MAP_SHARED)
-    if err != nil {
-        log.Fatalf("Can't map %s %d bytes at %d: %s\n", mf.filename, length, offset, err)
-    }
-    // log.Printf("Mapping %s %d bytes at %d\n", mf.filename, length, offset)
-    return &MappedSection{mf, bytes, uint32(length), offset, 0}
+    ms := &MappedSection{MappedFile: mf}
+    ms.remapAt(offset)
+    return ms
 }
 
-// Closes the file.  Does not explicitly unmap MappedSections.
+// Closes the file.  TODO: unmap all open sections
 //
 func (mf *MappedFile) Close() {
     mf.file.Close()
@@ -104,42 +94,57 @@ func (mf *MappedFile) Close() {
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
+// Used by MappedFile.MapAt and MappedSection.Demand
+//
+func (ms *MappedSection) remapAt(offset uint64) {
+    if ms.base != nil {
+        ms.unmap()
+    }
+    length := ms.Size - offset
+    if length > uint64(math.MaxInt32) {
+        length = uint64(math.MaxInt32)
+    }
+    bytes, err := syscall.Mmap(int(ms.file.Fd()), int64(offset), int(length),
+                               syscall.PROT_READ, syscall.MAP_SHARED)
+    if err != nil {
+        log.Fatalf("Can't map %s %d bytes at %d: %s\n", ms.Filename, length, offset, err)
+    }
+    ms.base = bytes
+    ms.size = uint32(length)
+    ms.baseOffset = offset
+    ms.localOffset = 0
+}
+
 // Require at least count bytes in the current mapped section.  If not available, remap
 // it from the current location.  Note only checks insufficient bytes in the section, not
 // the file itself, so that a caller can make a conservative overestimate rather than
-// calling Demand() more frequently with smaller amounts.  Returns nil if no more data
+// calling Demand() more frequently with smaller amounts.  Returns false if no more data
 // available.
 //
-func (ms *MappedSection) Demand(count uint32) *MappedSection {
+func (ms *MappedSection) Demand(count uint32) bool {
     /*
         val overrun = nbytes - mapped.remaining
         if (overrun > 0)
             remap(offset + mapped.position)
     */
     remain := ms.size - ms.localOffset
-    if (remain < count) {
-        newOffset := ms.baseOffset + uint64(ms.localOffset)
-        if newOffset == ms.mappedFile.Size {
-            return nil
-        }
-        ms.Unmap()
-        return ms.mappedFile.MapAt(newOffset)
+    if remain >= count {
+        return true
     }
-    return ms
-}
-
-// Essentially "forks" a mapped section; this is the same as calling MappedFile.MapAt
-//
-func (ms *MappedSection) MapAt(offset uint64) *MappedSection {
-    return ms.mappedFile.MapAt(offset)
+    newOffset := ms.baseOffset + uint64(ms.localOffset)
+    if newOffset < ms.Size {
+        ms.remapAt(newOffset)
+        return true
+    }
+    return false
 }
 
 // Unmap the section.
 //
-func (ms *MappedSection) Unmap() {
+func (ms *MappedSection) unmap() {
     err := syscall.Munmap(ms.base)
     if err != nil {
-        log.Fatalf("Failed to unmap %s at %d\n", ms.mappedFile.filename, ms.baseOffset)
+        log.Fatalf("Failed to unmap %s at %d\n", ms.Filename, ms.baseOffset)
     }
 }
 

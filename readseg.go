@@ -27,28 +27,28 @@ import (
     "runtime"
 )
 
-// Manages a pool of segWorkers in separate goroutines that can independently read
+// Manages a pool of SegWorkers in separate goroutines that can independently read
 // portions of a heap segment.  Allows us to do as much segment processing as possible
 // in parallel
 //
-type segReader struct {
+type SegReader struct {
     // parent reader
     *HProfReader
     // All active & inactive workers
-    workers []*segWorker
+    workers []*SegWorker
     // Unused workers are waiting to be taken off this channel
-    avail chan *segWorker
+    avail chan *SegWorker
     // This worker is having its queue of ids/offsets built
-    active *segWorker
+    active *SegWorker
     // How large does the queue get before we process it
     batchSize int
 }
 
-type segWorker struct {
+type SegWorker struct {
     // unique id for debugging
     id int
     // parent reader
-    *segReader
+    *SegReader
     // ID of first object
     firstOid ObjectId
     // what are their class defs
@@ -63,12 +63,12 @@ type segWorker struct {
 
 // Create a segment reader with one worker per CPU.
 //
-func makeSegReader(hr *HProfReader) *segReader {
+func NewSegReader(hr *HProfReader) *SegReader {
 
-    reader := &segReader{
+    reader := &SegReader{
         HProfReader: hr,
-        workers: make([]*segWorker, runtime.NumCPU()),
-        avail: make(chan *segWorker),
+        workers: make([]*SegWorker, runtime.NumCPU()),
+        avail: make(chan *SegWorker),
         active: nil,
         // Most segments are 1GB so partition for 100 work cycles
         batchSize: RecordsPerGB/100,
@@ -78,9 +78,9 @@ func makeSegReader(hr *HProfReader) *segReader {
 
     go func() {
         for i, _ := range reader.workers {
-            reader.workers[i] = &segWorker{
+            reader.workers[i] = &SegWorker{
                 id: i + 1,
-                segReader: reader,
+                SegReader: reader,
                 firstOid: 0,
                 classes: make([]*ClassDef, reader.batchSize),
                 offsets: make([]uint64, reader.batchSize),
@@ -99,7 +99,7 @@ func makeSegReader(hr *HProfReader) *segReader {
 // Add a location to be processed to the active segment worker.  If its queue
 // is full, tell it to proceed() and ready the next worker.
 //
-func (reader *segReader) doInstance(offset uint64, oid ObjectId, class *ClassDef) {
+func (reader *SegReader) doInstance(offset uint64, oid ObjectId, class *ClassDef) {
     worker := reader.active
     i := worker.count
     if i == 0 {
@@ -113,11 +113,11 @@ func (reader *segReader) doInstance(offset uint64, oid ObjectId, class *ClassDef
     }
 }
 
-// Called directly or via segReader.doInstance() -- start processing the worker on
+// Called directly or via SegReader.doInstance() -- start processing the worker on
 // its own goroutine and (if more work is indicated) pull the next available worker 
 // from the channel.
 //
-func (reader *segReader) proceed(more bool) {
+func (reader *SegReader) proceed(more bool) {
     go reader.active.process()
     if more {
         reader.active = <- reader.avail
@@ -125,9 +125,9 @@ func (reader *segReader) proceed(more bool) {
 }
 
 // Primary work loop for a segment worker.  This handles the subset of HPROF tags
-// that segReader.doInstance() hands off to us.
+// that SegReader.doInstance() hands off to us.
 //
-func (worker *segWorker) process() {
+func (worker *SegWorker) process() {
     if worker.count > 0 {
         start := worker.offsets[0]
         in := worker.MappedFile.MapAt(start)
@@ -139,9 +139,7 @@ func (worker *segWorker) process() {
                 case 0x21: // INSTANCE_DUMP
                     worker.readInstance(in, oid, worker.classes[i])
                 case 0x22: // OBJECT_ARRAY
-                    worker.readArray(in, oid, true)
-                case 0x23: // PRIMITIVE_ARRAY
-                    worker.readArray(in, oid, false)
+                    worker.readArray(in, oid)
                 default:
                     log.Fatalf("Unhandled record type %d in worker\n", tag)
             }
@@ -155,7 +153,7 @@ func (worker *segWorker) process() {
 // Shut down all segment workers, allowing them to be garbage collected, by launching
 // the current active one (even if empty) then draining the "available" channel.
 //
-func (reader *segReader) close() []*RefBag {
+func (reader *SegReader) close() []*RefBag {
     reader.proceed(false)
     bags := []*RefBag{}
     for i := 0; i < runtime.NumCPU(); i++ {
@@ -168,7 +166,7 @@ func (reader *segReader) close() []*RefBag {
 // The busy side of Heap.readInstance; record the instance data + references
 // to other objects.
 //
-func (worker *segWorker) readInstance(in *MappedSection, oid ObjectId, class *ClassDef) {
+func (worker *SegWorker) readInstance(in *MappedSection, oid ObjectId, class *ClassDef) {
 
     // header is
     //
@@ -179,11 +177,7 @@ func (worker *segWorker) readInstance(in *MappedSection, oid ObjectId, class *Cl
 
     in.Skip(4 + 2 * worker.IdSize)
     in.Demand(4)
-    length := in.GetUInt32()
-
-    in.Demand(length)
-    start := in.Offset()
-    end := start + uint64(length)
+    in.Demand(in.GetUInt32())
     cursor := uint32(0)
 
     for _, offset := range class.RefOffsets() {
@@ -194,14 +188,12 @@ func (worker *segWorker) readInstance(in *MappedSection, oid ObjectId, class *Cl
         }
         cursor += worker.IdSize
     }
-
-    in.Skip(uint32(end - in.Offset()))
 }
 
 // The busy side of Heap.readArray; record the instance data + references
 // to other objects.
 //
-func (worker *segWorker) readArray(in *MappedSection, oid ObjectId, isObjects bool) {
+func (worker *SegWorker) readArray(in *MappedSection, oid ObjectId) {
 
     // header is
     //
@@ -213,20 +205,13 @@ func (worker *segWorker) readArray(in *MappedSection, oid ObjectId, isObjects bo
     in.Demand(4)
     count := in.GetUInt32()
 
-    if (isObjects) {
-        in.Skip(worker.IdSize) // already know class
-        in.Demand(count * worker.IdSize)
-        for i := uint32(0); i < count; i++ {
-            toHid := worker.readId(in)
-            if toHid != 0 {
-                worker.refs.Add(oid, toHid)
-            }
+    in.Skip(worker.IdSize) // already know class
+    in.Demand(count * worker.IdSize)
+    for i := uint32(0); i < count; i++ {
+        toHid := worker.readId(in)
+        if toHid != 0 {
+            worker.refs.Add(oid, toHid)
         }
-    } else {
-        in.Demand(1)
-        jtype := worker.readJType(in)
-        in.Skip(count * jtype.Size)
     }
 }
-
 

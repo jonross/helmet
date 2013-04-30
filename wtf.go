@@ -36,9 +36,7 @@ func IntAryReverse(a []int) {
     end := len(a) - 1
     if end > 0 {
         for start := 0; start < end; {
-            tmp := a[start]
-            a[start] = a[end]
-            a[end] = tmp
+            a[start], a[end] = a[end], a[start]
             start++
             end--
         }
@@ -46,9 +44,7 @@ func IntAryReverse(a []int) {
 }
 
 func IntAryEq(a, b []int) bool {
-    lenA := len(a)
-    lenB := len(b)
-    if lenA != lenB {
+    if len(a) != len(b) {
         return false
     }
     for i, x := range a {

@@ -33,19 +33,17 @@ import (
 type RefBag struct {
     from [][]ObjectId
     to [][]HeapId
-    count int
 }
 
 // Add a reference.
 //
 func (refs *RefBag) Add(from ObjectId, to HeapId) {
-    if refs.count == 0 {
+    if refs.from == nil {
         refs.from = [][]ObjectId{make([]ObjectId, 0, 100000)}
         refs.to = [][]HeapId{make([]HeapId, 0, 100000)}
     }
-    refs.from = xappendOid(refs.from, from)
-    refs.to = xappendHid(refs.to, to)
-    refs.count++
+    refs.from = AppendOid(refs.from, from)
+    refs.to = AppendHid(refs.to, to)
 }
 
 // Combine and resolve a list of RefBags into separate referrer / referee arrays,
@@ -56,7 +54,9 @@ func MergeBags(bags []*RefBag, resolver func(HeapId) ObjectId) ([]ObjectId, []Ob
 
     count := 0
     for _, bag := range bags {
-        count += bag.count
+        for _, list := range bag.from {
+            count += len(list)
+        }
     }
 
     var wg sync.WaitGroup

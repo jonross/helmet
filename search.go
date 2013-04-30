@@ -120,7 +120,7 @@ func SearchHeap(heap *Heap, query Query, coll Collector) {
     // Run the finder chain for each object that matches the first node
 
     for oid := ObjectId(1); oid <= heap.MaxObjectId; oid++ {
-        if finder.classes.Has(uint32(heap.OidClass(oid).Cid)) {
+        if finder.classes.Has(uint32(heap.ClassOf(oid).Cid)) {
             finder.check(oid)
         }
     }
@@ -149,7 +149,7 @@ func (finder *Finder) check(oid ObjectId) {
 func (finder *Finder) doCheck(oid ObjectId) {
     heap := finder.Heap
     finder.focus = oid
-    class := heap.OidClass(oid)
+    class := heap.ClassOf(oid)
     if finder.classes.Has(uint32(class.Cid)) {
         // Object is a match at this query step
         if finder.next != nil {

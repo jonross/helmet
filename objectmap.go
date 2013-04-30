@@ -70,6 +70,7 @@ func (m *ObjectMap) PostProcess() {
                 for i, hid := range slot.heapIds {
                     slot.mapping[hid] = slot.objectIds[i]
                 }
+                // allow GC
                 slot.heapIds = nil
                 slot.objectIds = nil
                 wg.Done()
