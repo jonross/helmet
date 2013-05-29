@@ -82,7 +82,7 @@ func MergeBags(bags []*RefBag, resolver func(HeapId) ObjectId) ([]ObjectId, []Ob
     }
 
     wg.Wait()
-    return newFrom, newTo
+    return newFrom, newTo // TODO: include # of unmappable references
 }
 
 

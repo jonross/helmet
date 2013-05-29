@@ -247,9 +247,10 @@ func (heap *Heap) PostProcess(sr *SegReader) {
     if sr != nil {
         bags := sr.close()
         from, to := MergeBags(bags, func(hid HeapId) ObjectId {return heap.objectMap.Get(hid)})
+        log.Printf("%d references\n", len(from))
+        // TODO: add static references to graph
         heap.Graph = NewGraph(from, to)
         bags = nil // allow gc
-        log.Printf("%d references\n", len(from))
     }
 
     heap.objectMap = nil // allow GC

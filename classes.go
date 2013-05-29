@@ -176,22 +176,24 @@ func (class *ClassDef) Cook() *ClassDef {
     }
     class.span = span
 
-    // Determine offsets of reference fields; includes superclass offsets.
+    // Determine offsets of reference fields; includes references in superclasses.
+    // Note instance dumps are laid out leaf class first, so the reference offsets
+    // of a given class will be different for different subclasses.
 
-    ptr := uint32(0)
     offsets := []uint32{}
-    if ! class.IsRoot {
-        ptr = class.super.Span()
-        for _, offset := range class.super.RefOffsets() {
-            offsets = append(offsets, offset)
+    offset := uint32(0)
+    c := class
+
+    for ! c.IsRoot {
+        for _, field := range c.fields {
+            if field.JType.IsObj {
+                offsets = append(offsets, offset)
+            }
+            offset += field.JType.Size
         }
+        c = c.super
     }
-    for _, field := range class.fields {
-        if field.JType.IsObj {
-            offsets = append(offsets, ptr)
-        }
-        ptr += field.JType.Size
-    }
+
     class.refs = offsets
     // log.Printf("%s has refs at %v\n", class.Name, class.refs)
 

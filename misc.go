@@ -84,49 +84,50 @@ func (b BitSet) Has(i uint32) bool {
 // never copies the 2nd-level arrays, which is O(n**2) in the worst case for 1-D
 // arrays + generates some large tracts of garbage.  I've found this approach 
 // is 20% to 40% faster than a plain slice.
+// It's not clear why we need to do
+//   aa[slot] = a
+// again since we check len vs cap, but apparently Go can change the slice
+// address even if it doesn't grow... WTF
 //
 func Append32(aa [][]uint32, val uint32) [][]uint32 {
-    a := aa[len(aa)-1]
+    slot := len(aa) - 1
+    a := aa[slot]
     if len(a) == cap(a) {
         a = make([]uint32, 0, len(a))
         aa = append(aa, a)
+        slot += 1
     }
     a = append(a, val)
-    return aa
-}
-
-// See Append32()
-//
-func Append64(aa [][]uint64, val uint64) [][]uint64 {
-    a := aa[len(aa)-1]
-    if len(a) == cap(a) {
-        a = make([]uint64, 0, len(a))
-        aa = append(aa, a)
-    }
-    a = append(a, val)
+    aa[slot] = a
     return aa
 }
 
 // See Append32()
 //
 func AppendOid(aa [][]ObjectId, val ObjectId) [][]ObjectId {
-    a := aa[len(aa)-1]
+    slot := len(aa) - 1
+    a := aa[slot]
     if len(a) == cap(a) {
         a = make([]ObjectId, 0, len(a))
         aa = append(aa, a)
+        slot += 1
     }
     a = append(a, val)
+    aa[slot] = a
     return aa
 }
 
 // See Append32()
 //
 func AppendHid(aa [][]HeapId, val HeapId) [][]HeapId {
-    a := aa[len(aa)-1]
+    slot := len(aa) - 1
+    a := aa[slot]
     if len(a) == cap(a) {
         a = make([]HeapId, 0, len(a))
         aa = append(aa, a)
+        slot += 1
     }
     a = append(a, val)
+    aa[slot] = a
     return aa
 }

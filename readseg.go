@@ -181,12 +181,13 @@ func (worker *SegWorker) readInstance(in *MappedSection, oid ObjectId, class *Cl
     cursor := uint32(0)
 
     for _, offset := range class.RefOffsets() {
-        in.Skip(offset - cursor)
+        skip := offset - cursor
+        in.Skip(skip)
         toHid := worker.readId(in)
         if toHid != 0 {
             worker.refs.Add(oid, toHid)
         }
-        cursor += worker.IdSize
+        cursor += skip + worker.IdSize
     }
 }
 
