@@ -22,6 +22,10 @@
 
 package main
 
+import (
+    "log"
+)
+
 type StepRole int
 
 const (
@@ -51,12 +55,15 @@ type Query []*Step
 // during a search
 //
 type Collector interface {
+    // grouper, member
     Collect(ObjectId, ObjectId)
 }
 
 // Holds search state around one Step
 //
 type Finder struct {
+    // index in finder chain
+    index int
     // heap being searched
     *Heap
     // underlying query step
@@ -91,6 +98,7 @@ func SearchHeap(heap *Heap, query Query, coll Collector) {
 
     for i := len(query) - 1; i >= 0; i-- {
         prev := &Finder{
+            index: i,
             Heap: heap,
             Step: query[i],
             Collector: coll,
@@ -100,6 +108,7 @@ func SearchHeap(heap *Heap, query Query, coll Collector) {
             stack: make([]ObjectId, 0, 10000),
             next: finder,
             pass: 0,
+            // TODO make this more compact
             skipped: make([]int, heap.MaxObjectId + 1),
         }
         finder = prev
@@ -108,6 +117,13 @@ func SearchHeap(heap *Heap, query Query, coll Collector) {
         } else if query[i].role == StepMember {
             member = finder
         }
+    }
+
+    if group == nil {
+        panic("no group node")
+    }
+    if member == nil {
+        panic("no member node")
     }
 
     // Establish shortcuts to group & member nodes
@@ -120,7 +136,8 @@ func SearchHeap(heap *Heap, query Query, coll Collector) {
     // Run the finder chain for each object that matches the first node
 
     for oid := ObjectId(1); oid <= heap.MaxObjectId; oid++ {
-        if finder.classes.Has(uint32(heap.ClassOf(oid).Cid)) {
+        class := heap.ClassOf(oid)
+        if finder.classes.Has(uint32(class.Cid)) {
             finder.check(oid)
         }
     }
@@ -150,16 +167,19 @@ func (finder *Finder) doCheck(oid ObjectId) {
     heap := finder.Heap
     finder.focus = oid
     class := heap.ClassOf(oid)
+    log.Printf("doCheck %d %d a %s\n", finder.index, oid, class.Name)
     if finder.classes.Has(uint32(class.Cid)) {
         // Object is a match at this query step
         if finder.next != nil {
             // Not at last query step?  Let next step handle adjacent nodes.
             if (finder.next.Step.to) {
                 for dst, pos := heap.OutEdges(oid); pos != 0; dst, pos = heap.NextOutEdge(pos) {
+                    log.Printf("follow %d\n", dst)
                     finder.next.check(dst)
                 }
             } else {
                 for dst, pos := heap.InEdges(oid); pos != 0; dst, pos = heap.NextInEdge(pos) {
+                    log.Printf("follow %d\n", dst)
                     finder.next.check(dst)
                 }
             }

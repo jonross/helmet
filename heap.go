@@ -303,16 +303,23 @@ func (heap *Heap) WithClassesMatching(name string, f func(*ClassDef)) {
     isWild := strings.HasSuffix(name, "*") // TODO: do better, maybe regexp
     if isWild {
         name = name[:len(name)-1]
-    }
-    for _, class := range heap.classes[1:] {
-        var match bool
-        if isWild {
-            match = strings.HasPrefix(class.Name, name)
-        } else {
-            match = class.Name == name
+        for _, class := range heap.classes[1:] {
+            if strings.HasPrefix(class.Name, name) {
+                f(class)
+            }
         }
-        if match {
+    } else {
+        class := heap.ClassNamed(name)
+        if class != nil {
             f(class)
+            return
+        }
+        for _, prefix := range heap.autoPrefixes {
+            class := heap.ClassNamed(prefix + name)
+            if class != nil {
+                f(class)
+                return
+            }
         }
     }
 }

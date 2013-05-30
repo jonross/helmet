@@ -22,6 +22,13 @@
 
 package main
 
+import (
+    "log"
+    "os"
+)
+
+var loggingTestOutput = false
+
 // Wherein we write some functions that make me think, "WTF, Go -- why isn't this
 // in a standard library?"
 
@@ -53,5 +60,21 @@ func IntAryEq(a, b []int) bool {
         }
     }
     return true
+}
+
+// So, Go, what made you think I don't want to see any output at all when I run tests?
+// WHAT IF I'M DEBUGGING?
+//
+func LogTestOutput() {
+    if loggingTestOutput {
+        return
+    }
+    console, err := os.OpenFile("./test.log", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+    if err != nil {
+        log.Fatalln(err)
+    }
+    log.SetOutput(console)
+    os.Stdout = console
+    loggingTestOutput = true
 }
 

@@ -33,6 +33,7 @@ import (
 // a la 'jmap -histo'
 //
 type Histo struct {
+    heap *Heap
     // counts indexed by class ID
     counts []*ClassCount
     // indicates what objects we've seen
@@ -63,10 +64,11 @@ func (cc classCounts) Less(i, j int) bool {
 
 // Create a Histo with enough room for indicated # of classes & objects.
 //
-func NewHisto(numClasses, numObjects uint32) *Histo {
+func NewHisto(heap *Heap) *Histo {
     return &Histo{
-        counts: make([]*ClassCount, numClasses + 1), // 1-based
-        known: NewBitSet(numObjects + 1), // 1-based
+        heap: heap,
+        counts: make([]*ClassCount, heap.MaxClassId + 1), // 1-based
+        known: NewBitSet(uint32(heap.MaxObjectId) + 1), // 1-based
     }
 }
 
@@ -85,6 +87,12 @@ func (h *Histo) Add(oid ObjectId, class *ClassDef, size uint32) {
     }
     slot.count++
     slot.nbytes += uint64(size)
+}
+
+// Implement Collector.Collect
+//
+func (h *Histo) Collect(group ObjectId, member ObjectId) {
+    h.Add(member, h.heap.ClassOf(group), h.heap.SizeOf(member))
 }
 
 // Print the histogram.

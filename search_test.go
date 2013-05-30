@@ -23,59 +23,35 @@
 package main
 
 import (
-    "flag"
-    "log"
     "os"
-    "runtime"
-    "runtime/pprof"
+    "testing"
 )
 
-// Processing options.
-//
-type Options struct {
-    // do we need the reference graph
-    NeedRefs bool
+var testHeap *Heap
+
+func TestSearch(t *testing.T) {
+    LogTestOutput()
+    heap := getHeap(t)
+    // manually construct "x group y from Object x -> Integer y"
+    query := Query([]*Step {
+        &Step{"Object", "x", true, false, StepGroup},
+        &Step{"Integer", "y", true, false, StepMember},
+    })
+    histo := NewHisto(heap)
+    SearchHeap(heap, query, histo)
+    histo.Print(os.Stdout)
+    t.FailNow()
 }
 
-func main() {
-
-    runtime.GOMAXPROCS(runtime.NumCPU())
-    // runtime.GOMAXPROCS(1)
-
-    cpuProfile := flag.String("cpuprofile", "", "write cpu profile to file")
-    doHisto := flag.Bool("histo", false, "generate class histogram & exit")
-    flag.Parse()
-    args := flag.Args()
-
-    if *cpuProfile != "" {
-        f, err := os.Create(*cpuProfile)
-        if err != nil {
-            log.Fatal(err)
-        }
-        pprof.StartCPUProfile(f)
-        defer pprof.StopCPUProfile()
+func getHeap(t *testing.T) *Heap {
+    if testHeap != nil {
+        return testHeap
     }
-
-    switch {
-        case len(args) == 0:
-            log.Fatal("Missing heap filename")
-        case len(args) > 1:
-            log.Fatal("Extra args following heap filename")
+    heapFile := "./genheap.hprof"
+    if _, err := os.Stat(heapFile); os.IsNotExist(err) {
+        t.Fatalf("Can't find %s, make sure it's been generated\n", heapFile)
     }
-
-    options := &Options{
-        NeedRefs: ! *doHisto,
-    }
-
-    heap := ReadHeapDump(flag.Arg(0), options)
-
-    if *doHisto {
-        histo := NewHisto(heap)
-        for oid := ObjectId(1); oid <= heap.MaxObjectId; oid++ {
-            class := heap.ClassOf(oid)
-            histo.Add(oid, class, heap.SizeOf(oid))
-        }
-        histo.Print(os.Stdout)
-    }
+    options := &Options{NeedRefs: true}
+    testHeap := ReadHeapDump(heapFile, options)
+    return testHeap
 }
-
