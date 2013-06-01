@@ -49,8 +49,8 @@ type SegWorker struct {
     id int
     // parent reader
     *SegReader
-    // ID of first object
-    firstOid ObjectId
+    // object IDs to read
+    oids []ObjectId
     // what are their class defs
     classes []*ClassDef
     // where are they found in the heap dump
@@ -81,7 +81,7 @@ func NewSegReader(hr *HProfReader) *SegReader {
             reader.workers[i] = &SegWorker{
                 id: i + 1,
                 SegReader: reader,
-                firstOid: 0,
+                oids: make([]ObjectId, reader.batchSize),
                 classes: make([]*ClassDef, reader.batchSize),
                 offsets: make([]uint64, reader.batchSize),
                 count: 0,
@@ -102,9 +102,7 @@ func NewSegReader(hr *HProfReader) *SegReader {
 func (reader *SegReader) doInstance(offset uint64, oid ObjectId, class *ClassDef) {
     worker := reader.active
     i := worker.count
-    if i == 0 {
-        worker.firstOid = oid
-    }
+    worker.oids[i] = oid
     worker.classes[i] = class
     worker.offsets[i] = offset
     worker.count++
@@ -131,19 +129,17 @@ func (worker *SegWorker) process() {
     if worker.count > 0 {
         start := worker.offsets[0]
         in := worker.MappedFile.MapAt(start)
-        oid := worker.firstOid
         for i := 0; i < worker.count; i++ {
             in.Skip(uint32(worker.offsets[i] - in.Offset()))
             tag := in.GetByte()
             switch tag {
                 case 0x21: // INSTANCE_DUMP
-                    worker.readInstance(in, oid, worker.classes[i])
+                    worker.readInstance(in, worker.oids[i], worker.classes[i])
                 case 0x22: // OBJECT_ARRAY
-                    worker.readArray(in, oid)
+                    worker.readArray(in, worker.oids[i], worker.classes[i])
                 default:
                     log.Fatalf("Unhandled record type %d in worker\n", tag)
             }
-            oid++
         }
         worker.count = 0
     }
@@ -185,7 +181,8 @@ func (worker *SegWorker) readInstance(in *MappedSection, oid ObjectId, class *Cl
         in.Skip(skip)
         toHid := worker.readId(in)
         if toHid != 0 {
-            worker.refs.Add(oid, toHid)
+            // log.Printf("in readInst %d cid=%d a %s -> %x\n", oid, class.Cid, class.Name, toHid)
+            worker.refs.AddReference(oid, toHid)
         }
         cursor += skip + worker.IdSize
     }
@@ -194,7 +191,7 @@ func (worker *SegWorker) readInstance(in *MappedSection, oid ObjectId, class *Cl
 // The busy side of Heap.readArray; record the instance data + references
 // to other objects.
 //
-func (worker *SegWorker) readArray(in *MappedSection, oid ObjectId) {
+func (worker *SegWorker) readArray(in *MappedSection, oid ObjectId, class *ClassDef) {
 
     // header is
     //
@@ -211,7 +208,8 @@ func (worker *SegWorker) readArray(in *MappedSection, oid ObjectId) {
     for i := uint32(0); i < count; i++ {
         toHid := worker.readId(in)
         if toHid != 0 {
-            worker.refs.Add(oid, toHid)
+            // log.Printf("in readArray %d cid=%d a %s -> %x\n", oid, class.Cid, class.Name, toHid)
+            worker.refs.AddReference(oid, toHid)
         }
     }
 }

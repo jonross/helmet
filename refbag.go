@@ -37,7 +37,7 @@ type RefBag struct {
 
 // Add a reference.
 //
-func (refs *RefBag) Add(from ObjectId, to HeapId) {
+func (refs *RefBag) AddReference(from ObjectId, to HeapId) {
     if refs.from == nil {
         refs.from = [][]ObjectId{make([]ObjectId, 0, 100000)}
         refs.to = [][]HeapId{make([]HeapId, 0, 100000)}

@@ -23,6 +23,7 @@
 package main
 
 import (
+    "fmt"
     "log"
     "strings"
 )
@@ -214,11 +215,12 @@ func (heap *Heap) AddClass(name string, hid HeapId, superHid HeapId, fieldNames 
 // Note a class instance, incrementing MaxObjectId and binding it to its class
 // definition.  Does not record anything about the instance data.
 //
-func (heap *Heap) AddInstance(hid HeapId, class *ClassDef, size uint32) {
+func (heap *Heap) AddInstance(hid HeapId, class *ClassDef, size uint32) ObjectId {
     heap.MaxObjectId++
     heap.objectCids = append(heap.objectCids, class.Cid)
     heap.objectSizes = append(heap.objectSizes, size)
     heap.objectMap.Add(hid, heap.MaxObjectId)
+    return heap.MaxObjectId
 }
 
 // Return the ClassDef with the given name, or nil if none.
@@ -270,7 +272,12 @@ func (heap *Heap) HidClass(hid HeapId) *ClassDef {
 // Return the ClassDef for a given object id
 //
 func (heap *Heap) ClassOf(oid ObjectId) *ClassDef {
-    return heap.classes[heap.objectCids[oid]]
+    cid := heap.objectCids[oid]
+    class := heap.classes[cid]
+    if class == nil {
+        panic(fmt.Sprintf("oid %d cid %d has no class def", oid, cid))
+    }
+    return class
 }
 
 // Return the size for a given object id
