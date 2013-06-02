@@ -299,9 +299,16 @@ func (heap *Heap) AddSkip(name string) {
 func (heap *Heap) CidsMatching(name string) BitSet {
     bits := NewBitSet(heap.MaxClassId + 1)
     heap.WithClassesMatching(name, func(class *ClassDef) {
-        bits.Set(uint32(class.Cid))
+        addSubclassCids(class, bits)
     })
     return bits
+}
+
+func addSubclassCids(class *ClassDef, bits BitSet) {
+    bits.Set(uint32(class.Cid))
+    for _, subclass := range class.subclasses {
+        addSubclassCids(subclass, bits)
+    }
 }
 
 // Execute a function for each class matching a type wildcard.

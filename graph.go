@@ -30,6 +30,8 @@ import (
 // single slice for minimal mark/sweep overhead.
 //
 type Graph struct {
+    // max node id
+    MaxNode ObjectId
     // out edges per node
     outs *EdgeSet
     // in edges per node
@@ -105,15 +107,15 @@ func NewGraphWithMax(src []ObjectId, dst []ObjectId, maxNode ObjectId) * Graph {
     go counter(dst, &dstCounts)
     wg.Wait()
 
-    return NewGraphWithCounts(src, dst, srcCounts, dstCounts)
+    return NewGraphWithCounts(maxNode, src, dst, srcCounts, dstCounts)
 }
 
 // Use this form to create a Graph if the source and destination nodes + the
 // edge counts from each source & destination are known.  Modifies count arrays.
 //
-func NewGraphWithCounts(src []ObjectId, dst []ObjectId, srcCounts []int, dstCounts []int) *Graph {
+func NewGraphWithCounts(maxNode ObjectId, src, dst []ObjectId, srcCounts, dstCounts []int) *Graph {
 
-    g := &Graph{}
+    g := &Graph{MaxNode: maxNode}
     var wg sync.WaitGroup
     wg.Add(2)
 
@@ -200,7 +202,11 @@ func (e *EdgeSet) walk(node ObjectId) (ObjectId, int) {
     if offset == 0 {
         return 0, 0
     }
-    return e.edges[offset], offset
+    edge := e.edges[offset]
+    if edge > 0 {
+        return edge, offset
+    }
+    return e.next(offset)
 }
 
 // Continue walking an edge set from the previous position.  Returns
@@ -211,6 +217,10 @@ func (e *EdgeSet) next(offset int) (ObjectId, int) {
     if e.isStart[offset] {
         return 0, 0
     }
-    return e.edges[offset], offset
+    edge := e.edges[offset]
+    if edge > 0 {
+        return edge, offset
+    }
+    return e.next(offset)
 }
 

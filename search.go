@@ -133,9 +133,10 @@ func SearchHeap(heap *Heap, query Query, coll Collector) {
         f.member = member
     }
 
-    // Run the finder chain for each object that matches the first node
+    // Run the finder chain for each object that matches the first node.  Use max oid
+    // from graph, not heap, because objects near the end may not have references.
 
-    for oid := ObjectId(1); oid <= heap.MaxObjectId; oid++ {
+    for oid := ObjectId(1); oid <= heap.Graph.MaxNode; oid++ {
         class := heap.ClassOf(oid)
         if finder.classes.Has(uint32(class.Cid)) {
             finder.check(oid)

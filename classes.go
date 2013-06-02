@@ -47,6 +47,8 @@ type ClassDef struct {
     cooked bool
     // superclass def, after classdef is cooked
     super *ClassDef
+    // direct subclasses, after classdef is cooked
+    subclasses []*ClassDef
     // instance member information
     fields []*Field
     // is this def for java.lang.Object
@@ -162,6 +164,7 @@ func (class *ClassDef) Cook() *ClassDef {
         if class.super == nil {
             log.Fatalf("No super def for %v\n", class)
         }
+        class.super.subclasses = append(class.super.subclasses, class)
         class.super.Cook()
     }
 

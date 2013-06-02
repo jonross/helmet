@@ -30,18 +30,23 @@ func TestEdges(t *testing.T) {
     verifyGraph(t, makeGraph(edges_2), edges_2)
 }
 
-// Verify a graph against its raw edge data.  Note that the EdgSet filling
-// approach in graph.go reverses the initial edge order.
-//
+// Verify a graph against its raw edge data.  //
 func verifyGraph(t *testing.T, g *Graph, edges[][]int) {
     for _, list := range edges {
         node := ObjectId(list[0])
-        expected := list[1:]
         var actual []int
         for n, pos := g.OutEdges(node); pos != 0; n, pos = g.NextOutEdge(pos) {
             actual = append(actual, int(n))
         }
+        // EdgeSet filling approach in graph.go reverses the initial edge order.
         IntAryReverse(actual)
+        // Remove zeroes from expected results, graph walk won't return them.
+        expected := make([]int, 0)
+        for i, edge := range list {
+            if i > 0 && edge != 0 {
+                expected = append(expected, edge)
+            }
+        }
         if ! IntAryEq(expected, actual) {
             t.Errorf("Wrong edge list for %d, wanted %v, got %v\n", node, expected, actual)
         }
@@ -68,26 +73,26 @@ var edges_2 = [][]int {
     []int{2, 3, 6},
     []int{3, 5},
     []int{4},
-    []int{5, 4},
+    []int{5, 0, 4},
     []int{6, 5, 7},
     []int{7, 8, 9, 10},
     []int{8, 6, 16},
     []int{9, 18},
-    []int{10, 11, 14, 15},
+    []int{10, 11, 0, 14, 15},
     []int{11, 12, 13},
     []int{12},
     []int{13},
-    []int{14},
+    []int{14, 0},
     []int{15},
     []int{16, 17},
     []int{17, 18},
     []int{18},
     []int{19, 20, 21, 22},
     []int{20},
-    []int{22},
+    []int{22, 0},
     []int{22},
     []int{23, 24},
-    []int{24, 25, 26},
+    []int{0, 24, 25, 26},
     []int{25, 26},
     []int{26, 23},
 }

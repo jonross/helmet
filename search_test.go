@@ -40,7 +40,6 @@ func TestSearch(t *testing.T) {
     histo := NewHisto(heap)
     SearchHeap(heap, query, histo)
     histo.Print(os.Stdout)
-    t.FailNow()
 }
 
 func getHeap(t *testing.T) *Heap {
