@@ -26,14 +26,6 @@ import (
     "log"
 )
 
-type StepRole int
-
-const (
-    StepNone StepRole = iota// this step has no special role
-    StepGroup  // this step is the grouping node
-    StepMember // this step is the member node
-)
-
 // Represents one step in a query.
 //
 type Step struct {
@@ -45,8 +37,6 @@ type Step struct {
     to bool
     // Skip instances of skipped classes
     skip bool
-    // What role when objects match this step
-    role StepRole
 }
 
 type Query []*Step
@@ -55,8 +45,16 @@ type Query []*Step
 // during a search
 //
 type Collector interface {
-    // grouper, member
-    Collect(ObjectId, ObjectId)
+    Collect([]ObjectId)
+}
+
+// Maps finder foci to collector arg list
+//
+type CollectorArgs struct {
+    Collector
+    indices []int
+    foci []*Finder
+    funargs []ObjectId
 }
 
 // Holds search state around one Step
@@ -68,74 +66,71 @@ type Finder struct {
     *Heap
     // underlying query step
     *Step
-    // who's collecting results
-    Collector
     // what class IDs match Step.types
     classes BitSet
     // does this step skip skipped classes
     skip bool
     // current object id at this Finder
     focus ObjectId
+    // common arg-passing info
+    *CollectorArgs
     // object IDs to be considered
     stack []ObjectId
     // next finder in query, or nil at end
     next *Finder
-    // shortcut to the Finder for the group step
-    group *Finder
-    // shortcut to the Finder for the member step
-    member *Finder
     // what pass through this step is this
     pass int
     // what objects have been skipped, as of what pass
     skipped []int
 }
 
-func SearchHeap(heap *Heap, query Query, coll Collector) {
+func SearchHeap(heap *Heap, query Query, coll Collector, argIndices []int) {
 
     // Build finders & chain them
 
-    var finder, group, member *Finder
+    finders := make([]*Finder, len(query))
 
-    for i := len(query) - 1; i >= 0; i-- {
-        prev := &Finder{
+    for i, step := range query {
+        finders[i] = &Finder{
             index: i,
             Heap: heap,
-            Step: query[i],
-            Collector: coll,
+            Step: step,
             classes: heap.CidsMatching(query[i].types),
-            skip: query[i].skip && i > 0,
+            skip: step.skip && i > 0,
             focus: 0,
             stack: make([]ObjectId, 0, 10000),
-            next: finder,
+            next: nil,
             pass: 0,
             // TODO make this more compact
             skipped: make([]int, heap.MaxObjectId + 1),
         }
-        finder = prev
-        if query[i].role == StepGroup {
-            group = finder
-        } else if query[i].role == StepMember {
-            member = finder
-        }
     }
 
-    if group == nil {
-        panic("no group node")
-    }
-    if member == nil {
-        panic("no member node")
+    for i := 0; i < len(query)-1; i++ {
+        finders[i].next = finders[i+1]
     }
 
-    // Establish shortcuts to group & member nodes
+    // Save state about collector args
 
-    for f := finder; f != nil; f = f.next {
-        f.group = group
-        f.member = member
+    cargs := &CollectorArgs{
+        Collector: coll,
+        indices: argIndices,
+        foci: make([]*Finder, len(argIndices)),
+        funargs: make([]ObjectId, len(argIndices)),
+    }
+
+    for i, index := range argIndices {
+        cargs.foci[i] = finders[index]
+    }
+
+    for _, finder := range finders {
+        finder.CollectorArgs = cargs
     }
 
     // Run the finder chain for each object that matches the first node.  Use max oid
     // from graph, not heap, because objects near the end may not have references.
 
+    finder := finders[0]
     for oid := ObjectId(1); oid <= heap.Graph.MaxNode; oid++ {
         class := heap.ClassOf(oid)
         if finder.classes.Has(uint32(class.Cid)) {
@@ -185,8 +180,11 @@ func (finder *Finder) doCheck(oid ObjectId) {
                 }
             }
         } else {
-            // Complete match of finder chain
-            finder.Collect(finder.group.focus, finder.member.focus)
+            // Complete match of finder chain; call function
+            for i, _ := range finder.funargs {
+                finder.funargs[i] = finder.foci[i].focus
+            }
+            finder.Collect(finder.funargs)
         }
     } else if finder.skip && class.Skip {
         // Skipped object; search adjacent nodes using the same finder.  I've

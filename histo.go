@@ -91,7 +91,9 @@ func (h *Histo) Add(oid ObjectId, class *ClassDef, size uint32) {
 
 // Implement Collector.Collect
 //
-func (h *Histo) Collect(group ObjectId, member ObjectId) {
+func (h *Histo) Collect(oids []ObjectId) {
+    group := oids[0]
+    member := oids[1]
     h.Add(member, h.heap.ClassOf(group), h.heap.SizeOf(member))
 }
 
