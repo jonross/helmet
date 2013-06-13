@@ -125,7 +125,8 @@ func (hprof *HProfReader) read(in *MappedSection, options *Options) *Heap {
                 heap.AddClassName(classHid, nameHid)
 
             case 0x0c, 0x1c: // HEAP_DUMP, HEAP_DUMP_SEGMENT
-                log.Printf("Heap dump or segment of %d MB", length / 1048576)
+                log.Printf("Heap dump or segment of %d MB at %x", 
+                           length / 1048576, in.Offset() - uint64(headerSize))
                 numRecords += hprof.readSegment(in, length)
 
             case 0x03: // UNLOAD_CLASS

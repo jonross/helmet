@@ -1,5 +1,10 @@
 #!/bin/sh
 
+set -e
+
+tmp=/tmp/genheap.$$
+trap "rm -f $tmp" 0 ERR
+
 main() {
     verify_java
     run_genheap
@@ -16,13 +21,20 @@ verify_java() {
     esac
 }
 
+Huge=50000000 
+
 run_genheap() {
     javac com/myco/GenHeap.java
-    java com.myco.GenHeap &
+    rm -f genheap.hprof
+    java -Xmx10g -verbose:gc -XX:+UseConcMarkSweepGC com.myco.GenHeap $Huge 2>$tmp &
     pid=$!
-    sleep 2
-    jmap -dump:format=b,file=genheap.hprof $pid
-    kill $pid
+    while true; do
+        if grep ready $tmp; then
+            jmap -dump:format=b,file=genheap.hprof $pid
+            kill $pid
+            return
+        fi
+    done
 }
 
 warn() { echo "$*" >&2; }

@@ -1,5 +1,6 @@
 genheap.hprof
 helmet
 *.swp
+*.class
 test.log
 

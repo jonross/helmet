@@ -100,6 +100,8 @@ func (ms *MappedSection) remapAt(offset uint64) {
     if ms.base != nil {
         ms.unmap()
     }
+    skew := offset % 8192
+    offset = offset - skew
     length := ms.Size - offset
     if length > uint64(math.MaxInt32) {
         length = uint64(math.MaxInt32)
@@ -112,7 +114,7 @@ func (ms *MappedSection) remapAt(offset uint64) {
     ms.base = bytes
     ms.size = uint32(length)
     ms.baseOffset = offset
-    ms.localOffset = 0
+    ms.localOffset = uint32(skew)
 }
 
 // Require at least count bytes in the current mapped section.  If not available, remap
@@ -144,7 +146,7 @@ func (ms *MappedSection) Demand(count uint32) bool {
 func (ms *MappedSection) unmap() {
     err := syscall.Munmap(ms.base)
     if err != nil {
-        log.Fatalf("Failed to unmap %s at %d\n", ms.Filename, ms.baseOffset)
+        log.Fatalf("Failed to unmap %s at %x: %s\n", ms.Filename, ms.baseOffset, err)
     }
 }
 

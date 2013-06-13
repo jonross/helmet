@@ -31,16 +31,21 @@ import java.util.Random;
 public class GenHeap
 {
     private Map<Integer,Object> m = new HashMap<>();
+    private int passes;
 
     class Thing {
         Integer value;
     }
     
-    {
+    GenHeap(int passes) {
+        this.passes = passes;
+    }
+    
+    void gen() throws Exception {
         Random random = new Random();
         List<Thing> list = new ArrayList<>();
         
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < passes; i++) {
             Thing t = new Thing();
             t.value = i;
             list.add(t);
@@ -55,10 +60,14 @@ public class GenHeap
             m.put(i, String.valueOf(i));
         }
         */
+
+        System.err.println("ready to dump, sleeping");
+        Thread.sleep(60000);
     }
     
     public static void main(String[] args) throws Exception {
-        GenHeap g = new GenHeap();
-        Thread.sleep(60000);
+        GenHeap g = new GenHeap(Integer.parseInt(args[0]));
+        g.gen();
     }
 }
+
