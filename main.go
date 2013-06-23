@@ -31,6 +31,7 @@ import (
 )
 
 // Processing options.
+// TODO: move to heap.go
 //
 type Options struct {
     // do we need the reference graph
@@ -68,14 +69,21 @@ func main() {
     }
 
     heap := ReadHeapDump(flag.Arg(0), options)
+    session := &Session{
+        Heap: heap,
+        Settings: DefaultSettings(),
+    }
 
     if *doHisto {
+        // TODO rewrite using session.run()
         histo := NewHisto(heap)
         for oid := ObjectId(1); oid <= heap.MaxObjectId; oid++ {
             class := heap.ClassOf(oid)
             histo.Add(oid, class, heap.SizeOf(oid))
         }
         histo.Print(os.Stdout)
+    } else {
+        session.interact()
     }
 }
 

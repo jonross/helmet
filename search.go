@@ -39,8 +39,6 @@ type Step struct {
     skip bool
 }
 
-type Query []*Step
-
 // Implemented by types that can collect group / member object ids
 // during a search
 //
@@ -84,7 +82,7 @@ type Finder struct {
     skipped []int
 }
 
-func SearchHeap(heap *Heap, query Query, coll Collector, argIndices []int) {
+func SearchHeap(heap *Heap, query []*Step, coll Collector, argIndices []int) {
 
     // Build finders & chain them
 

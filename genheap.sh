@@ -22,11 +22,13 @@ verify_java() {
 }
 
 Huge=50000000 
+Small=10000
+Size=$Small
 
 run_genheap() {
     javac com/myco/GenHeap.java
     rm -f genheap.hprof
-    java -Xmx10g -verbose:gc -XX:+UseConcMarkSweepGC com.myco.GenHeap $Huge 2>$tmp &
+    java -Xmx10g -verbose:gc -XX:+UseConcMarkSweepGC com.myco.GenHeap $Size 2>$tmp &
     pid=$!
     while true; do
         if grep ready $tmp; then
