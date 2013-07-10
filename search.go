@@ -23,6 +23,7 @@
 package main
 
 import (
+    "fmt"
     "log"
 )
 
@@ -37,6 +38,15 @@ type Step struct {
     to bool
     // Skip instances of skipped classes
     skip bool
+}
+
+// Represents a function call in a query.  This is temporary, an artifact of the
+// parsing code; need to combine with Step into a higher-level query type.
+// TODO: composite query type
+//
+type QFun struct {
+    fnName string
+    fnArgs []string
 }
 
 // Implemented by types that can collect group / member object ids
@@ -80,6 +90,24 @@ type Finder struct {
     pass int
     // what objects have been skipped, as of what pass
     skipped []int
+}
+
+// Validate search parameters; ensure all function params are defined
+// in the path.
+//
+func ValidateSearch(fn *QFun, steps []*Step) (bool, error) {
+    for _, arg := range fn.fnArgs {
+        found := false
+        for _, step := range steps {
+            if arg == step.varName {
+                found = true
+            }
+        }
+        if ! found {
+            return false, fmt.Errorf("Function variable %s is not defined in path", arg)
+        }
+    }
+    return true, nil
 }
 
 func SearchHeap(heap *Heap, query []*Step, coll Collector, argIndices []int) {

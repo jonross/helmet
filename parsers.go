@@ -28,21 +28,9 @@ import (
     "reflect"
 )
 
-type QStep struct {
-    className string
-    varName string
-    outbound bool
-    skip bool
-}
-
-type QFun struct {
-    fnName string
-    fnArgs []string
-}
-
 type Query struct {
     function *QFun
-    path []*QStep
+    path []*Step
 }
 
 // Several nodes from the PEG grammar are returned by NewParsers so it's easy
@@ -70,7 +58,7 @@ func NewParsers() *Parsers {
     className := Sequence(identifier, ZeroOrMoreOf(Sequence(".", identifier)), 
                           Optional(OneOf(".*", OneOrMoreOf("[]")))).Adjacent().As(String)
 
-    // Match classname followed by optional step var name, and generate a QStep
+    // Match classname followed by optional step var name, and generate a Step
     step := Sequence(className, Optional(identifier)).
         Handle(func (s *State) interface{} {
             cname := s.Get(1).String()
@@ -78,31 +66,31 @@ func NewParsers() *Parsers {
             if s.Get(2).Kind() == reflect.String {
                 vname = s.Get(2).String()
             }
-            return &QStep{cname, vname, true, false}
+            return &Step{cname, vname, true, false}
         })
 
-    // Modify outbound / skip settings of a chain of QSteps
+    // Modify outbound / skip settings of a chain of Steps
     arrow := OneOf("<<-", "<-", "->>", "->")
     path := Sequence(step, ZeroOrMoreOf(Sequence(arrow, step))).Flatten(2).
         Handle(func (s *State) interface{} {
-            steps := []*QStep{s.Get(1).Interface().(*QStep)}
+            steps := []*Step{s.Get(1).Interface().(*Step)}
             log.Printf("len = %d\n", s.Len())
             for i := 2; i <= s.Len(); i += 2 {
                 arrow := s.Get(i).String()
-                step := s.Get(i+1).Interface().(*QStep)
+                step := s.Get(i+1).Interface().(*Step)
                 switch arrow {
                     case "<<-": 
+                        step.to = false
                         step.skip = true
-                        step.outbound = false
                     case "<-":
+                        step.to = false
                         step.skip = false
-                        step.outbound = false
                     case "->":
+                        step.to = true
                         step.skip = false
-                        step.outbound = true
                     case "->>":
+                        step.to = true
                         step.skip = true
-                        step.outbound = true
                 }
                 steps = append(steps, step)
             }
@@ -118,11 +106,16 @@ func NewParsers() *Parsers {
             return &QFun{fnName, fnArgs}
         })
 
-    search := Sequence(funcall, "from", path).
+    search := Sequence("run", funcall, "from", path).
         Handle(func (s *State) interface{} {
-            function := s.Get(1).Interface().(*QFun)
-            path := s.Get(3).Interface().([]*QStep)
-            return &Query{function, path}
+            function := s.Get(2).Interface().(*QFun)
+            path := s.Get(4).Interface().([]*Step)
+            ok, err := ValidateSearch(function, path)
+            if ok {
+                return SearchAction{function, path}
+            } else {
+                return ErrorAction{err}
+            }
         })
 
     setting := newSettingsParser()
@@ -161,9 +154,7 @@ func newSettingsParser() *Parser {
         Handle(func(s *State) interface{} {
             sname := s.Get(2).String()
             sval := int(s.Get(3).Int())
-            return func(session *Session) {
-                session.Settings[sname].IntValue = sval
-            }
+            return SettingsAction{sname, sval}
         })
 
     return setting

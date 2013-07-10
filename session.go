@@ -27,6 +27,7 @@ import (
     "code.google.com/p/go-gnureadline"
     "io"
     "log"
+    "strings"
 )
 
 // Global state for user interaction.
@@ -55,7 +56,9 @@ func (session *Session) interact() {
         if err != nil {
             log.Fatalf("readline error: %s\n", err)
         }
-        fmt.Printf("i got '%s'\n", line)
+        if strings.Trim(line, " \t") == "" {
+            continue
+        }
         gnureadline.AddHistory(line)
         session.run(line)
     }
@@ -65,9 +68,21 @@ func (session *Session) interact() {
 //
 func (session *Session) run(command string) {
     parsers := NewParsers()
-    _, _, result := parsers.Command.Debug(4).Parse(command)
-    action := result.(func(*Session))
-    action(session)
+    ok, _, result := parsers.Command.Parse(command)
+    if ok {
+        action := result.(Action)
+        action.Run(session)
+    } else {
+        // TODO better error messages
+        fmt.Printf("Syntax error in command\n")
+    }
+}
+
+// Execute a search (called from generated parser function.)
+//
+func (session *Session) runSearch(fn *QFun, steps []*Step) {
+    log.Printf("steps = %#v\n", steps)
+    log.Printf("fn = %#v\n", fn)
 }
 
 // Create map of default session settings.
@@ -76,4 +91,39 @@ func DefaultSettings() map[string]*Setting {
     settings := make(map[string]*Setting)
     settings["mingroupsize"] = &Setting{"", 1 << 20}
     return settings
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// A user action that can be executed in a session.  This is an interface type, with one struct
+// defined per action, rather than just a function pointer, so that it's easier to test.
+//
+type Action interface {
+    Run(*Session)
+}
+
+type SearchAction struct {
+    Function *QFun
+    Path []*Step
+}
+
+func (action SearchAction) Run(session *Session) {
+    session.runSearch(action.Function, action.Path)
+}
+
+type SettingsAction struct {
+    Name string
+    Value int
+}
+
+func (action SettingsAction) Run(session *Session) {
+    session.Settings[action.Name].IntValue = action.Value
+}
+
+type ErrorAction struct {
+    Error error
+}
+
+func (action ErrorAction) Run(session *Session) {
+    fmt.Println(action.Error.Error())
 }

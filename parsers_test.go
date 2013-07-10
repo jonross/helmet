@@ -51,21 +51,21 @@ func (s *QuerySuite) TestQueries(c *C) {
     c.Check(result, Equals, "int[][]")
 
     _, _, result = parsers.Step.Parse("Object")
-    c.Check(result, DeepEquals, &QStep{"Object", "", true, false})
+    c.Check(result, DeepEquals, &Step{"Object", "", true, false})
 
     _, _, result = parsers.Step.Parse("Object x")
-    c.Check(result, DeepEquals, &QStep{"Object", "x", true, false})
+    c.Check(result, DeepEquals, &Step{"Object", "x", true, false})
 
     _, _, result = parsers.Path.Parse("Map y ->> Integer x")
-    c.Check(result, DeepEquals, []*QStep {
-        &QStep{"Map", "y", true, false},
-        &QStep{"Integer", "x", true, true},
+    c.Check(result, DeepEquals, []*Step {
+        &Step{"Map", "y", true, false},
+        &Step{"Integer", "x", true, true},
     })
 
     _, _, result = parsers.Path.Parse("Integer x <<- Map y")
-    c.Check(result, DeepEquals, []*QStep {
-        &QStep{"Integer", "x", true, false},
-        &QStep{"Map", "y", false, true},
+    c.Check(result, DeepEquals, []*Step {
+        &Step{"Integer", "x", true, false},
+        &Step{"Map", "y", false, true},
     })
 
     log.Print("")
