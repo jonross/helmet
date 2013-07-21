@@ -23,6 +23,7 @@
 package main
 
 import (
+    "fmt"
     . "launchpad.net/gocheck"
     "log"
     "testing"
@@ -66,6 +67,22 @@ func (s *QuerySuite) TestQueries(c *C) {
     c.Check(result, DeepEquals, []*Step {
         &Step{"Integer", "x", true, false},
         &Step{"Map", "y", false, true},
+    })
+
+    _, _, result = parsers.Command.Parse("run histo(x, y) from Map x -> Integer y")
+    c.Check(result, DeepEquals, SearchAction{
+        &Query {
+            []*Step {
+                &Step{"Map", "x", true, false},
+                &Step{"Integer", "y", true, false},
+            },
+            []int{0, 1},
+        },
+    })
+
+    _, _, result = parsers.Command.Parse("run histo(x, y) from Map x -> Integer z")
+    c.Check(result, DeepEquals, ErrorAction{
+        fmt.Errorf("Function variable y is not defined in path"),
     })
 
     log.Print("")

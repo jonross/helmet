@@ -27,6 +27,7 @@ import (
     "code.google.com/p/go-gnureadline"
     "io"
     "log"
+    "os"
     "strings"
 )
 
@@ -80,9 +81,10 @@ func (session *Session) run(command string) {
 
 // Execute a search (called from generated parser function.)
 //
-func (session *Session) runSearch(fn *QFun, steps []*Step) {
-    log.Printf("steps = %#v\n", steps)
-    log.Printf("fn = %#v\n", fn)
+func (session *Session) runSearch(query *Query) {
+    histo := NewHisto(session.Heap)
+    SearchHeap(session.Heap, query, histo)
+    histo.Print(os.Stdout)
 }
 
 // Create map of default session settings.
@@ -103,12 +105,11 @@ type Action interface {
 }
 
 type SearchAction struct {
-    Function *QFun
-    Path []*Step
+    Query *Query
 }
 
 func (action SearchAction) Run(session *Session) {
-    session.runSearch(action.Function, action.Path)
+    session.runSearch(action.Query)
 }
 
 type SettingsAction struct {

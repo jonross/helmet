@@ -23,7 +23,6 @@
 package main
 
 import (
-    "fmt"
     "log"
 )
 
@@ -40,13 +39,11 @@ type Step struct {
     skip bool
 }
 
-// Represents a function call in a query.  This is temporary, an artifact of the
-// parsing code; need to combine with Step into a higher-level query type.
-// TODO: composite query type
-//
-type QFun struct {
-    fnName string
-    fnArgs []string
+// Represents a complete query; includes the step indices whose foci are
+// passed to the collector
+type Query struct {
+    steps []*Step
+    argIndices []int
 }
 
 // Implemented by types that can collect group / member object ids
@@ -92,36 +89,18 @@ type Finder struct {
     skipped []int
 }
 
-// Validate search parameters; ensure all function params are defined
-// in the path.
-//
-func ValidateSearch(fn *QFun, steps []*Step) (bool, error) {
-    for _, arg := range fn.fnArgs {
-        found := false
-        for _, step := range steps {
-            if arg == step.varName {
-                found = true
-            }
-        }
-        if ! found {
-            return false, fmt.Errorf("Function variable %s is not defined in path", arg)
-        }
-    }
-    return true, nil
-}
-
-func SearchHeap(heap *Heap, query []*Step, coll Collector, argIndices []int) {
+func SearchHeap(heap *Heap, query *Query, coll Collector) {
 
     // Build finders & chain them
 
-    finders := make([]*Finder, len(query))
+    finders := make([]*Finder, len(query.steps))
 
-    for i, step := range query {
+    for i, step := range query.steps {
         finders[i] = &Finder{
             index: i,
             Heap: heap,
             Step: step,
-            classes: heap.CidsMatching(query[i].types),
+            classes: heap.CidsMatching(query.steps[i].types),
             skip: step.skip && i > 0,
             focus: 0,
             stack: make([]ObjectId, 0, 10000),
@@ -132,7 +111,7 @@ func SearchHeap(heap *Heap, query []*Step, coll Collector, argIndices []int) {
         }
     }
 
-    for i := 0; i < len(query)-1; i++ {
+    for i := 0; i < len(query.steps)-1; i++ {
         finders[i].next = finders[i+1]
     }
 
@@ -140,12 +119,12 @@ func SearchHeap(heap *Heap, query []*Step, coll Collector, argIndices []int) {
 
     cargs := &CollectorArgs{
         Collector: coll,
-        indices: argIndices,
-        foci: make([]*Finder, len(argIndices)),
-        funargs: make([]ObjectId, len(argIndices)),
+        indices: query.argIndices,
+        foci: make([]*Finder, len(query.argIndices)),
+        funargs: make([]ObjectId, len(query.argIndices)),
     }
 
-    for i, index := range argIndices {
+    for i, index := range query.argIndices {
         cargs.foci[i] = finders[index]
     }
 

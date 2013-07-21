@@ -23,14 +23,17 @@
 package main
 
 import (
-    "log"
+    "fmt"
     . "github.com/jonross/peggy"
     "reflect"
 )
 
-type Query struct {
-    function *QFun
-    path []*Step
+// Represents a function call in a query.  This is a temporary artifact of the
+// parsing code; see validateSearch for creating full Query object.
+//
+type QFun struct {
+    fnName string
+    fnArgs []string
 }
 
 // Several nodes from the PEG grammar are returned by NewParsers so it's easy
@@ -74,7 +77,6 @@ func NewParsers() *Parsers {
     path := Sequence(step, ZeroOrMoreOf(Sequence(arrow, step))).Flatten(2).
         Handle(func (s *State) interface{} {
             steps := []*Step{s.Get(1).Interface().(*Step)}
-            log.Printf("len = %d\n", s.Len())
             for i := 2; i <= s.Len(); i += 2 {
                 arrow := s.Get(i).String()
                 step := s.Get(i+1).Interface().(*Step)
@@ -110,11 +112,11 @@ func NewParsers() *Parsers {
         Handle(func (s *State) interface{} {
             function := s.Get(2).Interface().(*QFun)
             path := s.Get(4).Interface().([]*Step)
-            ok, err := ValidateSearch(function, path)
-            if ok {
-                return SearchAction{function, path}
-            } else {
+            query, err := validateSearch(function, path)
+            if err != nil {
                 return ErrorAction{err}
+            } else {
+                return SearchAction{query}
             }
         })
 
@@ -158,5 +160,28 @@ func newSettingsParser() *Parser {
         })
 
     return setting
+}
+
+// Validate search parameters; ensure all function params are defined
+// in the path, and return a fully composed Query.
+//
+func validateSearch(fn *QFun, steps []*Step) (*Query, error) {
+    query := &Query {
+        steps,
+        make([]int, len(fn.fnArgs)),
+    }
+    for i, arg := range fn.fnArgs {
+        found := false
+        for j, step := range steps {
+            if arg == step.varName {
+                query.argIndices[i] = j
+                found = true
+            }
+        }
+        if ! found {
+            return nil, fmt.Errorf("Function variable %s is not defined in path", arg)
+        }
+    }
+    return query, nil
 }
 

@@ -33,12 +33,15 @@ func TestSearch(t *testing.T) {
     LogTestOutput()
     heap := getHeap(t)
     // manually construct "x group y from Object x -> Integer y"
-    query := []*Step {
-        &Step{"Object", "x", true, false},
-        &Step{"Integer", "y", true, false},
+    query := &Query {
+        []*Step {
+            &Step{"Object", "x", true, false},
+            &Step{"Integer", "y", true, false},
+        },
+        []int{0, 1},
     }
     histo := NewHisto(heap)
-    SearchHeap(heap, query, histo, []int{0, 1})
+    SearchHeap(heap, query, histo)
     histo.Print(os.Stdout)
 }
 
