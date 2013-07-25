@@ -56,3 +56,25 @@ func TestBitSet(t *testing.T) {
         }
     }
 }
+
+func TestUndoableBitSet(t *testing.T) {
+    var flags [1000000]bool
+    bits := NewUndoableBitSet(uint32(len(flags)))
+    for i, _ := range flags {
+        if rand.Int() % 5 == 0 {
+            flags[i] = true
+            bits.Set(uint32(i))
+        }
+    }
+    for i, flag := range flags {
+        if bits.Has(uint32(i)) != flag {
+            t.Fatalf("Bit %d should be %v but is %v\n", i, flag, bits.Has(uint32(i)))
+        }
+    }
+    bits.Undo()
+    for i, _ := range flags {
+        if bits.Has(uint32(i)) {
+            t.Fatalf("Bit %d should be unset\n", i)
+        }
+    }
+}

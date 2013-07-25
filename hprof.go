@@ -43,7 +43,7 @@ type HProfReader struct {
     longIds bool
     // target heap tracker
     *Heap
-    // segment rader, if needRefs is true
+    // segment reader, if needRefs is true
     *SegReader
 }
 

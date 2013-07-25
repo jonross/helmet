@@ -338,6 +338,16 @@ func (heap *Heap) WithClassesMatching(name string, f func(*ClassDef)) {
     }
 }
 
+// Create a Histo with enough room for class / object indices from this heap.
+//
+func (heap *Heap) NewHisto() *Histo {
+    return &Histo{
+        heap: heap,
+        counts: make([]*ClassCount, heap.MaxClassId + 1), // 1-based
+        known: NewBitSet(uint32(heap.MaxObjectId) + 1), // 1-based
+    }
+}
+
 // Assign a unique ID to every object whose class is skipped.  This allows the
 // graph search to maintain a piece of information for skipped objects only
 // rather than also having an empty slot for non-skipped objects.

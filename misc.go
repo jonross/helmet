@@ -78,6 +78,35 @@ func (b BitSet) Has(i uint32) bool {
     return b[i/64] & (1 << (i % 64)) != 0
 }
 
+// A BitSet that maintains a list of bits that have been set, and can reset them.
+//
+type UndoableBitSet struct {
+    bits BitSet
+    haveSet []uint32
+}
+
+func NewUndoableBitSet(size uint32) *UndoableBitSet {
+    return &UndoableBitSet{bits: NewBitSet(size)}
+}
+
+func (ub *UndoableBitSet) Set(i uint32) {
+    ub.bits.Set(i)
+    ub.haveSet = append(ub.haveSet, i)
+}
+
+func (ub *UndoableBitSet) Has(i uint32) bool {
+    return ub.bits.Has(i)
+}
+
+func (ub *UndoableBitSet) Undo() {
+    if ub.haveSet != nil {
+        for _, bit := range ub.haveSet {
+            ub.bits.Clear(bit)
+        }
+        ub.haveSet = ub.haveSet[:0]
+    }
+}
+
 // GC-friendly approach to building enormous arrays.  Start by making one e.g.
 //   aa = make([][]uint32, 0, 10000)
 // This continually appends to the last array in aa and grows aa as needed but

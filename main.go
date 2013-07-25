@@ -76,7 +76,7 @@ func main() {
 
     if *doHisto {
         // TODO rewrite using session.run()
-        histo := NewHisto(heap)
+        histo := heap.NewHisto()
         for oid := ObjectId(1); oid <= heap.MaxObjectId; oid++ {
             class := heap.ClassOf(oid)
             histo.Add(oid, class, heap.SizeOf(oid))

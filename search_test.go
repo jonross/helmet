@@ -23,15 +23,31 @@
 package main
 
 import (
+    . "launchpad.net/gocheck"
+    "fmt"
     "os"
-    "testing"
 )
+
+type SearchSuite struct{} 
+var _ = Suite(&SearchSuite{})
 
 var testHeap *Heap
 
-func TestSearch(t *testing.T) {
+func (s *SearchSuite) TestSearch(c *C) {
+
     LogTestOutput()
-    heap := getHeap(t)
+    fmt.Print("") // gratuitous use
+
+    heap := getHeap(c)
+    parsers := NewParsers()
+
+    // verify Thing counts
+    histo := heap.NewHisto()
+    _, _, result := parsers.Command.Parse("run histo(x,x) from com.myco.GenHeap$Thing x")
+    SearchHeap(heap, result.(SearchAction).Query, histo)
+    count, _ := histo.Counts(heap.ClassNamed("com.myco.GenHeap$Thing"))
+    c.Check(count, Equals, uint32(10000))
+
     // manually construct "x group y from Object x -> Integer y"
     query := &Query {
         []*Step {
@@ -40,18 +56,18 @@ func TestSearch(t *testing.T) {
         },
         []int{0, 1},
     }
-    histo := NewHisto(heap)
+    histo = heap.NewHisto()
     SearchHeap(heap, query, histo)
     histo.Print(os.Stdout)
 }
 
-func getHeap(t *testing.T) *Heap {
+func getHeap(c *C) *Heap {
     if testHeap != nil {
         return testHeap
     }
     heapFile := "./genheap.hprof"
     if _, err := os.Stat(heapFile); os.IsNotExist(err) {
-        t.Fatalf("Can't find %s, make sure it's been generated\n", heapFile)
+        c.Fatal("Can't find %s, make sure it's been generated\n", heapFile)
     }
     options := &Options{NeedRefs: true}
     testHeap := ReadHeapDump(heapFile, options)

@@ -83,10 +83,8 @@ type Finder struct {
     stack []ObjectId
     // next finder in query, or nil at end
     next *Finder
-    // what pass through this step is this
-    pass int
-    // what objects have been skipped, as of what pass
-    skipped []int
+    // what objects have been touched on each pass
+    touched *UndoableBitSet
 }
 
 func SearchHeap(heap *Heap, query *Query, coll Collector) {
@@ -94,6 +92,7 @@ func SearchHeap(heap *Heap, query *Query, coll Collector) {
     // Build finders & chain them
 
     finders := make([]*Finder, len(query.steps))
+    touched := NewUndoableBitSet(uint32(heap.MaxObjectId + 1))
 
     for i, step := range query.steps {
         finders[i] = &Finder{
@@ -105,9 +104,8 @@ func SearchHeap(heap *Heap, query *Query, coll Collector) {
             focus: 0,
             stack: make([]ObjectId, 0, 10000),
             next: nil,
-            pass: 0,
             // TODO make this more compact
-            skipped: make([]int, heap.MaxObjectId + 1),
+            touched: touched,
         }
     }
 
@@ -135,11 +133,12 @@ func SearchHeap(heap *Heap, query *Query, coll Collector) {
     // Run the finder chain for each object that matches the first node.  Use max oid
     // from graph, not heap, because objects near the end may not have references.
 
-    finder := finders[0]
+    start := finders[0]
     for oid := ObjectId(1); oid <= heap.Graph.MaxNode; oid++ {
         class := heap.ClassOf(oid)
-        if finder.classes.Has(uint32(class.Cid)) {
-            finder.check(oid)
+        if start.classes.Has(uint32(class.Cid)) {
+            start.check(oid)
+            touched.Undo()
         }
     }
 }
@@ -149,7 +148,7 @@ func SearchHeap(heap *Heap, query *Query, coll Collector) {
 // I'd written it that way in Scala to keep from blowing the JVM stack.
 //
 func (finder *Finder) check(oid ObjectId) {
-    finder.pass += 1
+    finder.touched.Set(uint32(oid))
     finder.doCheck(oid)
     for {
         top := len(finder.stack) - 1
@@ -197,11 +196,8 @@ func (finder *Finder) doCheck(oid ObjectId) {
         // this step for each pass, otherwise if (for example) we get 'String x
         // <<- MyObject y' and the strings are held in a data structure whose
         // internals are elided, we will ignore all paths from all x to y after
-        // the first one.  Unfortunately for heaps with large such structures,
-        // the skipped set can get pretty big.  TODO: make less expensive
-        explore := finder.skipped[oid] < finder.pass
-        finder.skipped[oid] = finder.pass
-        if explore {
+        // the first one.
+        if !finder.touched.Has(uint32(oid)) {
             if (finder.Step.to) {
                 for dst, pos := heap.OutEdges(oid); pos != 0; dst, pos = heap.NextOutEdge(pos) {
                     finder.stack = append(finder.stack, dst)

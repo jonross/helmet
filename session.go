@@ -82,7 +82,7 @@ func (session *Session) run(command string) {
 // Execute a search (called from generated parser function.)
 //
 func (session *Session) runSearch(query *Query) {
-    histo := NewHisto(session.Heap)
+    histo := session.Heap.NewHisto()
     SearchHeap(session.Heap, query, histo)
     histo.Print(os.Stdout)
 }

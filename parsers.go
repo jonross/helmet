@@ -53,7 +53,7 @@ type Parsers struct {
 //
 func NewParsers() *Parsers {
 
-    letter := AnyOf("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_")
+    letter := AnyOf("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$")
     digit := AnyOf("0123456789")
     identifier := Sequence(letter, ZeroOrMoreOf(OneOf(letter, digit))).Adjacent().As(String)
 

@@ -62,16 +62,6 @@ func (cc classCounts) Less(i, j int) bool {
     return bytes.Compare(cc[i].name, cc[j].name) < 0
 }
 
-// Create a Histo with enough room for indicated # of classes & objects.
-//
-func NewHisto(heap *Heap) *Histo {
-    return &Histo{
-        heap: heap,
-        counts: make([]*ClassCount, heap.MaxClassId + 1), // 1-based
-        known: NewBitSet(uint32(heap.MaxObjectId) + 1), // 1-based
-    }
-}
-
 // Add an object if not already known.
 //
 func (h *Histo) Add(oid ObjectId, class *ClassDef, size uint32) {
@@ -87,6 +77,17 @@ func (h *Histo) Add(oid ObjectId, class *ClassDef, size uint32) {
     }
     slot.count++
     slot.nbytes += uint64(size)
+}
+
+// Return count, nbytes for a class.
+//
+func (h *Histo) Counts(class *ClassDef) (uint32, uint64) {
+    slot := h.counts[class.Cid]
+    if slot != nil {
+        return slot.count, slot.nbytes
+    } else {
+        return 0, 0
+    }
 }
 
 // Implement Collector.Collect

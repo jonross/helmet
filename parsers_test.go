@@ -31,13 +31,13 @@ import (
 
 // Hook up gocheck into the "go test" runner. 
 func Test(t *testing.T) { TestingT(t) }
-type QuerySuite struct{} 
-var _ = Suite(&QuerySuite{})
+type ParserSuite struct{} 
+var _ = Suite(&ParserSuite{})
 
 // Some fine-grained query tests of lower-level parser nodes.  These let us detect
 // breakage there with less debugging.
 //
-func (s *QuerySuite) TestQueries(c *C) {
+func (s *ParserSuite) TestQueries(c *C) {
 
     LogTestOutput()
     parsers := NewParsers()
@@ -90,7 +90,7 @@ func (s *QuerySuite) TestQueries(c *C) {
 
 // Verify all the "set" actions.
 //
-func (s *QuerySuite) TestSettings(c *C) {
+func (s *ParserSuite) TestSettings(c *C) {
 
     session := &Session{Settings: DefaultSettings()}
     sval := func(name string) *Setting {
