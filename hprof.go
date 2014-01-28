@@ -170,6 +170,7 @@ func (hprof *HProfReader) readSegment(in *MappedSection, length uint32) int {
     numRecords := 0
     for in.Offset() < end {
         numRecords++
+        in.Demand(1)
         tag := in.GetByte()
         // log.Printf("tag %d\n", tag)
         switch tag {
