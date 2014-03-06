@@ -39,7 +39,6 @@ var _ = Suite(&ParserSuite{})
 //
 func (s *ParserSuite) TestQueries(c *C) {
 
-    LogTestOutput()
     parsers := NewParsers()
 
     _, _, result := parsers.ClassName.Parse("Object")

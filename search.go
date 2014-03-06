@@ -23,7 +23,7 @@
 package main
 
 import (
-    "log"
+    // "log"
 )
 
 // Represents one step in a query.
@@ -167,19 +167,19 @@ func (finder *Finder) doCheck(oid ObjectId) {
     heap := finder.Heap
     finder.focus = oid
     class := heap.ClassOf(oid)
-    log.Printf("doCheck %d %d a %s\n", finder.index, oid, class.Name)
+    // log.Printf("doCheck %d %d a %s\n", finder.index, oid, class.Name)
     if finder.classes.Has(uint32(class.Cid)) {
         // Object is a match at this query step
         if finder.next != nil {
             // Not at last query step?  Let next step handle adjacent nodes.
             if (finder.next.Step.to) {
                 for dst, pos := heap.OutEdges(oid); pos != 0; dst, pos = heap.NextOutEdge(pos) {
-                    log.Printf("follow %d\n", dst)
+                    // log.Printf("follow %d\n", dst)
                     finder.next.check(dst)
                 }
             } else {
                 for dst, pos := heap.InEdges(oid); pos != 0; dst, pos = heap.NextInEdge(pos) {
-                    log.Printf("follow %d\n", dst)
+                    // log.Printf("follow %d\n", dst)
                     finder.next.check(dst)
                 }
             }

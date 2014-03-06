@@ -57,11 +57,35 @@ var prims = map[byte]string{
     'B': "byte", 'S': "short", 'I': "int", 'J': "long",
 }
 
-// A simple bit set, no bounds checking, no dynamic sizing, no nothing.
+func IntAryReverse(a []int) []int {
+    j := len(a) - 1
+    if j > 0 {
+        for i := 0; i < j; {
+            a[i], a[j] = a[j], a[i]
+            i++
+            j--
+        }
+    }
+    return a
+}
+
+func IntAryEq(a, b []int) bool {
+    if len(a) != len(b) {
+        return false
+    }
+    for i, x := range a {
+        if x != b[i] {
+            return false
+        }
+    }
+    return true
+}
+
+// A simple bit set, no frills, no bounds checking, no dynamic sizing.
 //
 type BitSet []uint64
 
-func NewBitSet(size uint32) BitSet {
+func MakeBitSet(size uint32) BitSet {
     size = 1 + (size - 1) / 64
     return make([]uint64, size, size)
 }
@@ -86,7 +110,7 @@ type UndoableBitSet struct {
 }
 
 func NewUndoableBitSet(size uint32) *UndoableBitSet {
-    return &UndoableBitSet{bits: NewBitSet(size)}
+    return &UndoableBitSet{bits: MakeBitSet(size)}
 }
 
 func (ub *UndoableBitSet) Set(i uint32) {

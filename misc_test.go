@@ -41,7 +41,7 @@ func TestDemangle(t *testing.T) {
 
 func TestBitSet(t *testing.T) {
     var flags [1000000]bool
-    bits := NewBitSet(uint32(len(flags)))
+    bits := MakeBitSet(uint32(len(flags)))
     for i, _ := range flags {
         bits.Set(uint32(i))
         if rand.Int() % 2 == 0 {

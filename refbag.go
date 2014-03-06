@@ -30,6 +30,8 @@ import (
 // the object ID of the source but not that of the target, because we don't 
 // build the HID->OID mapping until after all the object IDs are known.
 //
+// TODO compress heap IDs
+//
 type RefBag struct {
     from [][]ObjectId
     to [][]HeapId

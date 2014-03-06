@@ -35,7 +35,6 @@ var testHeap *Heap
 
 func (s *SearchSuite) TestSearch(c *C) {
 
-    LogTestOutput()
     fmt.Print("") // gratuitous use
 
     heap := getHeap(c)

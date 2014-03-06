@@ -297,7 +297,7 @@ func (heap *Heap) AddSkip(name string) {
 // Return a bitset with class IDs of classes matching a type wildcard turned on.
 //
 func (heap *Heap) CidsMatching(name string) BitSet {
-    bits := NewBitSet(heap.MaxClassId + 1)
+    bits := MakeBitSet(heap.MaxClassId + 1)
     heap.WithClassesMatching(name, func(class *ClassDef) {
         addSubclassCids(class, bits)
     })
@@ -344,7 +344,7 @@ func (heap *Heap) NewHisto() *Histo {
     return &Histo{
         heap: heap,
         counts: make([]*ClassCount, heap.MaxClassId + 1), // 1-based
-        known: NewBitSet(uint32(heap.MaxObjectId) + 1), // 1-based
+        known: MakeBitSet(uint32(heap.MaxObjectId) + 1), // 1-based
     }
 }
 

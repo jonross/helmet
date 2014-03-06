@@ -106,6 +106,7 @@ func (hprof *HProfReader) read(in *MappedSection, options *Options) *Heap {
         in.Skip(4) // Skip timestamp
         length := in.GetUInt32()
         // log.Printf("Record type %d len %d at %d\n", tag, length, in.Offset() - uint64(headerSize))
+        // demand length here?
 
         // A function table would be more efficient but there aren't
         // that many top-level records compared to instance records.
