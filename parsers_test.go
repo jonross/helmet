@@ -23,14 +23,11 @@
 package main
 
 import (
-    "fmt"
     . "launchpad.net/gocheck"
+    "fmt"
     "log"
-    "testing"
 )
 
-// Hook up gocheck into the "go test" runner. 
-func Test(t *testing.T) { TestingT(t) }
 type ParserSuite struct{} 
 var _ = Suite(&ParserSuite{})
 

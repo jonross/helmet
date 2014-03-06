@@ -23,15 +23,18 @@
 package main
 
 import (
-    "testing"
+    . "launchpad.net/gocheck"
 )
 
-func TestEdges(t *testing.T) {
-    verifyGraph(t, makeGraph(edges_2), edges_2)
+type GraphSuite struct{}
+var _ = Suite(&GraphSuite{})
+
+func (s *GraphSuite) TestEdges(c *C) {
+    verifyGraph(c, makeGraph(edges_2), edges_2)
 }
 
 // Verify a graph against its raw edge data.  //
-func verifyGraph(t *testing.T, g *Graph, edges[][]int) {
+func verifyGraph(c *C, g *Graph, edges[][]int) {
     for _, list := range edges {
         node := ObjectId(list[0])
         var actual []int
@@ -48,7 +51,7 @@ func verifyGraph(t *testing.T, g *Graph, edges[][]int) {
             }
         }
         if ! IntAryEq(expected, actual) {
-            t.Errorf("Wrong edge list for %d, wanted %v, got %v\n", node, expected, actual)
+            c.Errorf("Wrong edge list for %d, wanted %v, got %v\n", node, expected, actual)
         }
     }
 }

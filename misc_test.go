@@ -23,23 +23,28 @@
 package main
 
 import (
+    . "launchpad.net/gocheck"
     "math/rand"
     "testing"
 )
 
-func TestDemangle(t *testing.T) {
+// Hook up gocheck into the "go test" runner. 
+func Test(t *testing.T) { TestingT(t) }
+
+type MiscSuite struct{} 
+var _ = Suite(&MiscSuite{})
+
+func (s *MiscSuite) TestDemangle(c *C) {
     try := func(input, wanted string) {
         result := Demangle(input)
-        if result != wanted {
-            t.Errorf("For %s wanted %s but got %s\n", input, wanted, result)
-        }
+        c.Check(result, Equals, wanted)
     }
     try("[[I", "int[][]")
     try("[Lcom/foo/Bar;", "com.foo.Bar[]")
     try("com/foo/Bar", "com.foo.Bar")
 }
 
-func TestBitSet(t *testing.T) {
+func (s *MiscSuite) TestBitSet(c *C) {
     var flags [1000000]bool
     bits := MakeBitSet(uint32(len(flags)))
     for i, _ := range flags {
@@ -52,12 +57,12 @@ func TestBitSet(t *testing.T) {
     }
     for i, flag := range flags {
         if bits.Has(uint32(i)) != flag {
-            t.Fatalf("Bit %d should be %v but is %v\n", i, flag, bits.Has(uint32(i)))
+            c.Errorf("Bit %d should be %v but is %v\n", i, flag, bits.Has(uint32(i)))
         }
     }
 }
 
-func TestUndoableBitSet(t *testing.T) {
+func (s *MiscSuite) TestUndoableBitSet(c *C) {
     var flags [1000000]bool
     bits := NewUndoableBitSet(uint32(len(flags)))
     for i, _ := range flags {
@@ -68,13 +73,13 @@ func TestUndoableBitSet(t *testing.T) {
     }
     for i, flag := range flags {
         if bits.Has(uint32(i)) != flag {
-            t.Fatalf("Bit %d should be %v but is %v\n", i, flag, bits.Has(uint32(i)))
+            c.Errorf("Bit %d should be %v but is %v\n", i, flag, bits.Has(uint32(i)))
         }
     }
     bits.Undo()
     for i, _ := range flags {
         if bits.Has(uint32(i)) {
-            t.Fatalf("Bit %d should be unset\n", i)
+            c.Errorf("Bit %d should be unset\n", i)
         }
     }
 }

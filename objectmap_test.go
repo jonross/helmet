@@ -23,11 +23,14 @@
 package main
 
 import (
+    . "launchpad.net/gocheck"
     "math/rand"
-    "testing"
 )
 
-func TestObjectMap(t *testing.T) {
+type OMSuite struct{}
+var _ = Suite(&OMSuite{})
+
+func (s *OMSuite) TestObjectMap(c *C) {
 
     var hids [1000000]HeapId
     var om ObjectMap
@@ -43,7 +46,7 @@ func TestObjectMap(t *testing.T) {
     for i, hid := range hids {
         oid := om.Get(hid)
         if oid != ObjectId(i + 1) {
-            t.Fatalf("Expected %d -> %d but was %d\n", hid, i + 1, oid)
+            c.Errorf("Expected %d -> %d but was %d\n", hid, i + 1, oid)
         }
     }
 }
