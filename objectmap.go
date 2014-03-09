@@ -32,7 +32,7 @@ const MaxHeapId = HeapId(1 << MaxHeapBits - 1)
 const NumSlots = 1 << (MaxHeapBits - 16)
 
 // Maps native heap ids to ObjectIds.  To save space we pay attention to only the
-// lower 36 bits of the HID (which handles heaps up to 68G.)  We then have 1<<20
+// lower 36 bits of the HID (which handles heaps up to 64G.)  We then have 1<<20
 // maps, each of which maps the low 16 bits of the HID for the same high 20 bits.
 //
 type ObjectMap [NumSlots]*omSlot
