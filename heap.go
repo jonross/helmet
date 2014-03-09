@@ -25,6 +25,7 @@ package main
 import (
     "fmt"
     "log"
+    "regexp"
     "strings"
 )
 
@@ -335,6 +336,42 @@ func (heap *Heap) WithClassesMatching(name string, f func(*ClassDef)) {
                 return
             }
         }
+    }
+}
+
+// New wildcard version
+//
+func (heap *Heap) MatchClasses(bits BitSet, name string, include bool) bool {
+
+    matched := false
+
+    // replace [] with \[\] so we can use it as a pattern
+
+    name = strings.Replace(name, "[]", "\\[\\]", -1)
+    re, err := regexp.Compile(name)
+    if err != nil {
+        // TODO fix
+        log.Fatal("Can't make RE from %s: %s\n", name, err)
+    }
+
+    for _, class := range heap.classesByName {
+        if re.MatchString(class.Name) {
+            markClass(class, bits, include)
+            matched = true
+        }
+    }
+
+    return matched
+}
+
+func markClass(class *ClassDef, bits BitSet, include bool) {
+    if (include) {
+        bits.Set(uint32(class.Cid))
+    } else {
+        bits.Clear(uint32(class.Cid))
+    }
+    for _, c := range class.subclasses {
+        markClass(c, bits, include)
     }
 }
 

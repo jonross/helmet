@@ -22,10 +22,9 @@
 
 package main
 
-/*
 import (
     . "launchpad.net/gocheck"
-    "testing"
+    . "github.com/jonross/gorgon"
 )
 
 type CTSuite struct{} 
@@ -33,10 +32,10 @@ var _ = Suite(&CTSuite{})
 
 func (s *CTSuite) TestClassMatching(c *C) {
 
-    ci := &ClassInfo{}
+    h := NewHeap(8)
 
     add := func(name string, hid int, superHid int) {
-        ci.AddClassDef(name, hid, superHid, []Field{})
+        h.AddClass(name, HeapId(hid), HeapId(superHid), []string{}, []*JType{}, []HeapId{})
     }
 
     add("java.lang.Object", 1, 0)
@@ -47,40 +46,31 @@ func (s *CTSuite) TestClassMatching(c *C) {
     add("java.util.List", 6, 1)
     add("java.util.Map", 7, 1)
 
-    for _, class := ci.AllClasses() {
-        ci.Cook()
+    for _, class := range h.classesByHid {
+        class.Cook()
     }
 
-    bits := NewBitSet(10)
+    bits := MakeBitSet(10)
 
-    verify := func(name string, include bool, set []int) {
-        ci.MatchClasses(bits, name, include)
-        for hid := 1: hid <= 7; hid++ {
-            if (HasInt(set, hid)) {
-                
-            }
-            else {
+    verify := func(set []int) {
+        for hid := 1; hid <= 7; hid++ {
+            if HasInt(set, hid) && !bits.Has(uint32(hid)) {
+                c.Errorf("Expected HID %d to be present", hid)
+            } else if ! HasInt(set, hid) && bits.Has(uint32(hid)) {
+                c.Errorf("Expected HID %d to be absent", hid)
             }
         }
     }
 
-class TestDefs extends FunSuite {
-    
-    test("matching classes") {
-        val info = defs
-        val bits = new BitSet(10)
-        def verify(hids: Int*) {
-            hids.foreach(hid => bits(hid) || fail("hid " + hid + " not set"))
-            (1 to 7).toList.diff(hids).foreach(hid => bits(hid) && fail ("hid " + hid + " set"))
-        }
-        verify()
-        info.matchClasses(bits, "java.lang.Object", true)
-        verify(1, 2, 3, 4, 5, 6, 7)
-        info.matchClasses(bits, "java.lang.Number", false)
-        verify(1, 2, 6, 7)
-        info.matchClasses(bits, "java.util.*", false)
-        verify(1, 2)
-    }
+    verify([]int{})
 
-*/
+    h.MatchClasses(bits, "java.lang.Object", true)
+    verify([]int{1, 2, 3, 4, 5, 6, 7})
+
+    h.MatchClasses(bits, "java.lang.Number", false)
+    verify([]int{1, 2, 6, 7})
+
+    h.MatchClasses(bits, "java.util.*", false)
+    verify([]int{1, 2})
+}
 
