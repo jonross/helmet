@@ -78,7 +78,7 @@ type Heap struct {
     // skip ID of objects with classes matched by skipNames
     skipIds []int
     // object graph
-    *Graph
+    graph *ObjectIdGraph
 }
 
 func NewHeap(idSize uint32) *Heap {
@@ -124,7 +124,7 @@ func NewHeap(idSize uint32) *Heap {
 
         skipNames: nil,
         skipIds: nil,
-        Graph: nil,
+        graph: nil,
     }
 }
 
@@ -251,7 +251,7 @@ func (heap *Heap) PostProcess(sr *SegReader) {
         from, to := MergeBags(bags, func(hid HeapId) ObjectId {return heap.objectMap.Get(hid)})
         log.Printf("%d references\n", len(from))
         // TODO: add static references to graph
-        heap.Graph = NewGraph(from, to)
+        heap.graph = NewObjectIdGraph(from, to)
         bags = nil // allow gc
     }
 

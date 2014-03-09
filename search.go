@@ -134,7 +134,7 @@ func SearchHeap(heap *Heap, query *Query, coll Collector) {
     // from graph, not heap, because objects near the end may not have references.
 
     start := finders[0]
-    for oid := ObjectId(1); oid <= heap.Graph.MaxNode; oid++ {
+    for oid := ObjectId(1); oid <= heap.graph.MaxNode; oid++ {
         class := heap.ClassOf(oid)
         if start.classes.Has(uint32(class.Cid)) {
             start.check(oid)
@@ -165,6 +165,7 @@ func (finder *Finder) check(oid ObjectId) {
 //
 func (finder *Finder) doCheck(oid ObjectId) {
     heap := finder.Heap
+    g := heap.graph
     finder.focus = oid
     class := heap.ClassOf(oid)
     // log.Printf("doCheck %d %d a %s\n", finder.index, oid, class.Name)
@@ -173,12 +174,12 @@ func (finder *Finder) doCheck(oid ObjectId) {
         if finder.next != nil {
             // Not at last query step?  Let next step handle adjacent nodes.
             if (finder.next.Step.to) {
-                for dst, pos := heap.OutEdges(oid); pos != 0; dst, pos = heap.NextOutEdge(pos) {
+                for dst, pos := g.OutEdges(oid); pos != 0; dst, pos = g.NextOutEdge(pos) {
                     // log.Printf("follow %d\n", dst)
                     finder.next.check(dst)
                 }
             } else {
-                for dst, pos := heap.InEdges(oid); pos != 0; dst, pos = heap.NextInEdge(pos) {
+                for dst, pos := g.InEdges(oid); pos != 0; dst, pos = g.NextInEdge(pos) {
                     // log.Printf("follow %d\n", dst)
                     finder.next.check(dst)
                 }
@@ -199,11 +200,11 @@ func (finder *Finder) doCheck(oid ObjectId) {
         // the first one.
         if !finder.touched.Has(uint32(oid)) {
             if (finder.Step.to) {
-                for dst, pos := heap.OutEdges(oid); pos != 0; dst, pos = heap.NextOutEdge(pos) {
+                for dst, pos := g.OutEdges(oid); pos != 0; dst, pos = g.NextOutEdge(pos) {
                     finder.stack = append(finder.stack, dst)
                 }
             } else {
-                for dst, pos := heap.InEdges(oid); pos != 0; dst, pos = heap.NextInEdge(pos) {
+                for dst, pos := g.InEdges(oid); pos != 0; dst, pos = g.NextInEdge(pos) {
                     finder.stack = append(finder.stack, dst)
                 }
             }

@@ -1,3 +1,6 @@
+// GENERATED FILE
+// DO NOT EDIT
+
 /*
     Copyright (c) 2012, 2013 by Jonathan Ross (jonross@alum.mit.edu)
 
@@ -26,15 +29,15 @@ import (
     . "launchpad.net/gocheck"
 )
 
-type GraphSuite struct{}
-var _ = Suite(&GraphSuite{})
+type ObjectIdGraphSuite struct{} 
+var _ = Suite(&ObjectIdGraphSuite{})
 
-func (s *GraphSuite) TestEdges(c *C) {
-    verifyGraph(c, makeGraph(edges_2), edges_2)
+func (s *ObjectIdGraphSuite) TestEdges(c *C) {
+    verifyObjectIdGraph(c, makeObjectIdGraph(ObjectId_edges_2), ObjectId_edges_2)
 }
 
 // Verify a graph against its raw edge data.  //
-func verifyGraph(c *C, g *Graph, edges[][]int) {
+func verifyObjectIdGraph(c *C, g *ObjectIdGraph, edges[][]int) {
     for _, list := range edges {
         node := ObjectId(list[0])
         var actual []int
@@ -42,7 +45,14 @@ func verifyGraph(c *C, g *Graph, edges[][]int) {
             actual = append(actual, int(n))
         }
         // EdgeSet filling approach in graph.go reverses the initial edge order.
-        IntAryReverse(actual)
+        j := len(actual) - 1
+        if j > 0 {
+            for i := 0; i < j; {
+                actual[i], actual[j] = actual[j], actual[i]
+                i++
+                j--
+            }
+        }
         // Remove zeroes from expected results, graph walk won't return them.
         expected := make([]int, 0)
         for i, edge := range list {
@@ -50,7 +60,15 @@ func verifyGraph(c *C, g *Graph, edges[][]int) {
                 expected = append(expected, edge)
             }
         }
-        if ! IntAryEq(expected, actual) {
+        same := len(expected) == len(actual)
+        if (same) {
+            for i, _ := range expected {
+                if expected[i] != actual[i] {
+                    same = false
+                }
+            }
+        }
+        if ! same {
             c.Errorf("Wrong edge list for %d, wanted %v, got %v\n", node, expected, actual)
         }
     }
@@ -58,7 +76,7 @@ func verifyGraph(c *C, g *Graph, edges[][]int) {
 
 // Generate a sample graph.
 //
-func makeGraph(edges [][]int) *Graph {
+func makeObjectIdGraph(edges [][]int) *ObjectIdGraph {
     var src, dst []ObjectId
     for _, list := range edges {
         for _, node := range list[1:] {
@@ -66,12 +84,12 @@ func makeGraph(edges [][]int) *Graph {
             dst = append(dst, ObjectId(node))
         }
     }
-    return NewGraph(src, dst)
+    return NewObjectIdGraph(src, dst)
 }
 
-// Sample edge data for use with makeGraph
+// Sample edge data for use with makeObjectIdGraph
 //
-var edges_2 = [][]int {
+var ObjectId_edges_2 = [][]int {
     []int{1, 2, 19, 23},
     []int{2, 3, 6},
     []int{3, 5},
@@ -92,15 +110,11 @@ var edges_2 = [][]int {
     []int{18},
     []int{19, 20, 21, 22},
     []int{20},
-    []int{21, 0},
+    []int{22, 0},
     []int{22},
     []int{23, 24},
     []int{0, 24, 25, 26},
     []int{25, 26},
     []int{26, 23},
-    []int{27, 28, 29},
-    []int{28},
-    []int{29},
-    []int{30, 10},
 }
 
