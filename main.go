@@ -76,6 +76,15 @@ func main() {
 
     if *doHisto {
         // TODO rewrite using session.run()
+        /*
+            val report = new ClassHistogram(heap)
+            for (id <- 1 to heap.maxId) {
+                if (heap.canSee(id)) {
+                    val classDef = heap.classes.getForObjectId(id)
+                    report.add(id, classDef)
+                }
+            }
+        */
         histo := heap.NewHisto()
         for oid := ObjectId(1); oid <= heap.MaxObjectId; oid++ {
             class := heap.ClassOf(oid)

@@ -44,6 +44,7 @@ type ClassCount struct {
     name []byte
     count uint32
     nbytes uint64
+    retained uint64 // TODO calculate
 }
 
 // Support sort weirdness. :-(
@@ -95,6 +96,7 @@ func (h *Histo) Counts(class *ClassDef) (uint32, uint64) {
 func (h *Histo) Collect(oids []ObjectId) {
     group := oids[0]
     member := oids[1]
+    // TODO check known first
     h.Add(member, h.heap.ClassOf(group), h.heap.SizeOf(member))
 }
 
@@ -122,3 +124,54 @@ func (h *Histo) Print(out io.Writer) {
 
     fmt.Fprintf(out, "%10d %10d total\n", totalCount, totalBytes)
 }
+
+/*
+    TODO add
+
+    abstract sealed trait Threshold
+    case object NoLimit extends Threshold
+    case class MaxCount(count: Int) extends Threshold
+    case class MaxBytes(nbytes: Long) extends Threshold
+    case class MaxRetained(nbytes: Long) extends Threshold
+    
+    abstract sealed trait GarbageVisibility
+    case object AllObjects extends GarbageVisibility
+    case object LiveOnly extends GarbageVisibility
+    case object GarbageOnly extends GarbageVisibility
+
+        val diff = heap.threshold match {
+            case NoLimit =>             (a: Counts, b: Counts) => a.nbytes - b.nbytes
+            case MaxCount(count) =>     (a: Counts, b: Counts) => a.count.toLong - b.count.toLong
+            case MaxBytes(nbytes) =>    (a: Counts, b: Counts) => a.nbytes - b.nbytes
+            case MaxRetained(nbytes) => (a: Counts, b: Counts) => a.retained - b.retained
+        }
+        
+        val slots = counts.toList filter {_ != null} sortWith { (a,b) =>
+            val delta = diff(a, b)
+            if (delta > 0) true
+            else if (delta < 0) false
+            else a.classDef.name.compareTo(b.classDef.name) < 0
+        }
+        
+        val total = new Counts(null)
+        val hidden = new Counts(null)
+        
+        val hide = heap.threshold match {
+            case NoLimit =>             c: Counts => false
+            case MaxCount(count) =>     c: Counts => c.count < count
+            case MaxBytes(nbytes) =>    c: Counts => c.nbytes < nbytes
+            case MaxRetained(nbytes) => c: Counts => c.retained < nbytes
+        }
+        
+        for (slot <- slots) {
+            if (hide(slot)) {
+                hidden.count += slot.count
+                hidden.nbytes += slot.nbytes
+            }
+            else {
+                out.write("%10d %10d %10d %s\n".format(slot.count, slot.nbytes, slot.retained, slot.classDef.name))
+                total.count += slot.count
+                total.nbytes += slot.nbytes
+            }
+        }
+*/

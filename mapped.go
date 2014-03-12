@@ -100,6 +100,7 @@ func (ms *MappedSection) remapAt(offset uint64) {
     if ms.base != nil {
         ms.unmap()
     }
+    // force alignment
     skew := offset % 8192
     offset = offset - skew
     length := ms.Size - offset

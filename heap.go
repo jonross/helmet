@@ -53,6 +53,10 @@ type Heap struct {
     gcRoots []HeapId
     // highest class id assigned, 1-based
     MaxClassId uint32
+    // highest heap ID encountered
+    maxHeapId HeapId
+    // highest heap offset encountered
+    maxOffset uint64
     // class defs indexed by cid
     classes []*ClassDef
     // maps HeapId of a class to HeapId of its name; we have to do this because
@@ -90,6 +94,8 @@ func NewHeap(idSize uint32) *Heap {
         gcRoots: make([]HeapId, 0, 10000),                  // good enough
 
         MaxClassId: 0,
+        maxHeapId: 0,
+        maxOffset: 0,
         classes: []*ClassDef{nil},                          // leave room for entry [0]
         classNames: make(map[HeapId]HeapId, 50000),         // handles most heaps
         classesByName: make(map[string]*ClassDef, 50000),   // good enough
@@ -171,6 +177,10 @@ func (heap *Heap) ClassNameId(hid HeapId) HeapId {
 func (heap *Heap) AddClass(name string, hid HeapId, superHid HeapId, fieldNames []string, 
                             fieldTypes []*JType, staticRefs []HeapId) *ClassDef {
 
+    if hid > maxHeapId {
+        maxHeapId = hid
+    }
+
     dname := Demangle(name)
     class := heap.classesByName[dname]
     if class != nil {
@@ -216,11 +226,20 @@ func (heap *Heap) AddClass(name string, hid HeapId, superHid HeapId, fieldNames 
 // Note a class instance, incrementing MaxObjectId and binding it to its class
 // definition.  Does not record anything about the instance data.
 //
-func (heap *Heap) AddInstance(hid HeapId, class *ClassDef, size uint32) ObjectId {
+func (heap *Heap) AddInstance(hid HeapId, class *ClassDef, size uint32, offset uint64) ObjectId {
+
+    if hid > maxHeapId {
+        maxHeapId = hid
+    }
+    if offset > maxOffset {
+        maxOffset = offset
+    }
+
     heap.MaxObjectId++
     heap.objectCids = append(heap.objectCids, class.Cid)
     heap.objectSizes = append(heap.objectSizes, size)
     heap.objectMap.Add(hid, heap.MaxObjectId)
+
     return heap.MaxObjectId
 }
 
@@ -420,5 +439,20 @@ func (heap *Heap) ProcessSkips() {
 
 func (heap *Heap) SkipIdOf(oid ObjectId) int {
     return heap.skipIds[oid]
+}
+
+// Return a fabricated heap ID higher than the highest one already seen.  This
+// is used for building placeholder objects and classes.
+//
+func (heap *Heap) fabricateHeapId() HeapId {
+    heap.maxHeapId += heap.IdSize
+    return heap.maxHeapId
+}
+
+// Same idea as fabricateHeapId
+//
+func (heap *Heap) fabricateOffset() uint64 {
+    heap.maxOffset += heap.IdSize
+    return heap.maxOffset
 }
 

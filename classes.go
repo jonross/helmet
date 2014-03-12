@@ -95,7 +95,7 @@ type JType struct {
 //
 func NewClassDef(heap *Heap, name string, cid ClassId, hid HeapId, superHid HeapId,
                     fields []*Field, staticRefs []HeapId) *ClassDef {
-    isRoot := name == "java.lang.Object"
+    isRoot := name == "java.lang.Object" || name == "root"
     return &ClassDef{
         Heap: heap,
         Name: name,
@@ -117,6 +117,9 @@ func NewClassDef(heap *Heap, name string, cid ClassId, hid HeapId, superHid Heap
 
 // Return this class's superclass ClassDef.
 // Cooks the class as a side effect.
+//
+// Note this cannot be called until all classes have been read from the heap, since class
+// layouts may appear before the layouts of their superclasses. :-(
 //
 func (class *ClassDef) Super() *ClassDef {
     return class.Cook().super
