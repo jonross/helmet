@@ -99,12 +99,12 @@ func NewParsers() *Parsers {
             return steps
         })
 
-    // Match e.g. "histo(x, y)"
+    // Match e.g. "histo x, y"
     funargs := Sequence(identifier, ZeroOrMoreOf(Sequence(",", identifier).Pick(2))).Flatten(1).As(Strings)
-    funcall := Sequence(identifier, "(", funargs, ")").
+    funcall := Sequence(identifier, funargs).
         Handle(func (s *State) interface{} {
             fnName := s.Get(1).String()
-            fnArgs := s.Get(3).Interface().([]string)
+            fnArgs := s.Get(2).Interface().([]string)
             return &QFun{fnName, fnArgs}
         })
 

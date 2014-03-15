@@ -65,7 +65,7 @@ func (s *ParserSuite) TestQueries(c *C) {
         &Step{"Map", "y", false, true},
     })
 
-    _, _, result = parsers.Command.Parse("histo(x, y) of Map x -> Integer y")
+    _, _, result = parsers.Command.Parse("histo x, y of Map x -> Integer y")
     c.Check(result, DeepEquals, SearchAction{
         &Query {
             []*Step {
@@ -76,7 +76,7 @@ func (s *ParserSuite) TestQueries(c *C) {
         },
     })
 
-    _, _, result = parsers.Command.Parse("histo(x, y) of Map x -> Integer z")
+    _, _, result = parsers.Command.Parse("histo x, y of Map x -> Integer z")
     c.Check(result, DeepEquals, ErrorAction{
         fmt.Errorf("Function variable y is not defined in path"),
     })
