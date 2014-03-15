@@ -42,12 +42,12 @@ func (s *SearchSuite) TestSearch(c *C) {
 
     // verify Thing counts
     histo := heap.NewHisto()
-    _, _, result := parsers.Command.Parse("histo(x,x) from com.myco.GenHeap$Thing x")
+    _, _, result := parsers.Command.Parse("histo(x,x) of com.myco.GenHeap$Thing x")
     SearchHeap(heap, result.(SearchAction).Query, histo)
     count, _ := histo.Counts(heap.ClassNamed("com.myco.GenHeap$Thing"))
     c.Check(count, Equals, uint32(10000))
 
-    // manually construct "x group y from Object x -> Integer y"
+    // manually construct "x group y of Object x -> Integer y"
     query := &Query {
         []*Step {
             &Step{"Object", "x", true, false},

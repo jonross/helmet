@@ -108,7 +108,7 @@ func NewParsers() *Parsers {
             return &QFun{fnName, fnArgs}
         })
 
-    search := Sequence(funcall, "from", path).
+    search := Sequence(funcall, "of", path).
         Handle(func (s *State) interface{} {
             function := s.Get(1).Interface().(*QFun)
             path := s.Get(3).Interface().([]*Step)
