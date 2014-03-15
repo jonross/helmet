@@ -103,6 +103,7 @@ func (ms *MappedSection) remapAt(offset uint64) {
     // force alignment
     skew := offset % 8192
     offset = offset - skew
+    // how much of the file is left & how much can we get
     length := ms.Size - offset
     if length > uint64(math.MaxInt32) {
         length = uint64(math.MaxInt32)
@@ -115,6 +116,7 @@ func (ms *MappedSection) remapAt(offset uint64) {
     ms.base = bytes
     ms.size = uint32(length)
     ms.baseOffset = offset
+    // restore what we subtracted from the requested offset
     ms.localOffset = uint32(skew)
 }
 
@@ -153,6 +155,9 @@ func (ms *MappedSection) unmap() {
 
 // Read a byte at the current offset and advance the offset 1 byte.
 //
+// NOTE: this is not safe to call unless Demand() has already accounted for the
+// required length.
+//
 func (ms *MappedSection) GetByte() byte {
     ret := ms.base[ms.localOffset]
     ms.localOffset++
@@ -160,6 +165,9 @@ func (ms *MappedSection) GetByte() byte {
 }
 
 // Read an unsigned 16-bit integer at the current offset and advance the offset 2 bytes.
+//
+// NOTE: this is not safe to call unless Demand() has already accounted for the
+// required length.
 //
 func (ms *MappedSection) GetUInt16() uint16 {
     buf := ms.base[ms.localOffset:]
@@ -170,6 +178,9 @@ func (ms *MappedSection) GetUInt16() uint16 {
 }
 
 // Read a signed 32-bit integer at the current offset and advance the offset 4 bytes.
+//
+// NOTE: this is not safe to call unless Demand() has already accounted for the
+// required length.
 //
 func (ms *MappedSection) GetInt32() int32 {
     buf := ms.base[ms.localOffset:]
@@ -183,6 +194,9 @@ func (ms *MappedSection) GetInt32() int32 {
 
 // Read an unsigned 32-bit integer at the current offset and advance the offset 4 bytes.
 //
+// NOTE: this is not safe to call unless Demand() has already accounted for the
+// required length.
+//
 func (ms *MappedSection) GetUInt32() uint32 {
     buf := ms.base[ms.localOffset:]
     bits := uint32(buf[0]) << 24 |
@@ -194,6 +208,9 @@ func (ms *MappedSection) GetUInt32() uint32 {
 }
 
 // Read an unsigned 64-bit integer at the current offset and advance the offset 8 bytes.
+//
+// NOTE: this is not safe to call unless Demand() has already accounted for the
+// required length.
 //
 func (ms *MappedSection) GetUInt64() uint64 {
     buf := ms.base[ms.localOffset:]
@@ -211,6 +228,9 @@ func (ms *MappedSection) GetUInt64() uint64 {
 
 // Return a raw slice at the current offset and advance the offset by the given amount.
 //
+// NOTE: this is not safe to call unless Demand() has already accounted for the
+// required length.
+//
 func (ms *MappedSection) GetRaw(count uint32) []byte {
     buf := ms.base[ms.localOffset:ms.localOffset+count]
     ms.localOffset += count
@@ -218,6 +238,9 @@ func (ms *MappedSection) GetRaw(count uint32) []byte {
 }
 
 // Same as GetRaw() but convert it to a string.
+//
+// NOTE: this is not safe to call unless Demand() has already accounted for the
+// required length.
 //
 func (ms *MappedSection) GetString(count uint32) string {
     buf := ms.base[ms.localOffset:ms.localOffset+count]

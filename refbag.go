@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2012, 2013 by Jonathan Ross (jonross@alum.mit.edu)
+    Copyright (c) 2013, 2014 by Jonathan Ross (jonross@alum.mit.edu)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -29,8 +29,6 @@ import (
 // For accumulating a list of references from an instance or array dump.  We know 
 // the object ID of the source but not that of the target, because we don't 
 // build the HID->OID mapping until after all the object IDs are known.
-//
-// TODO compress heap IDs
 //
 type RefBag struct {
     from [][]ObjectId

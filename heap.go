@@ -30,7 +30,7 @@ import (
 )
 
 const (
-    RecordsPerGB = 10000000 // rough estimate based on observations
+    RecordsPerGB = 10000000 // rough estimate based on observations; TODO wider use
 )
 
 // A native ID read from the heap dump
@@ -96,6 +96,7 @@ func NewHeap(idSize uint32) *Heap {
         MaxClassId: 0,
         maxHeapId: 0,
         maxOffset: 0,
+
         classes: []*ClassDef{nil},                          // leave room for entry [0]
         classNames: make(map[HeapId]HeapId, 50000),         // handles most heaps
         classesByName: make(map[string]*ClassDef, 50000),   // good enough
@@ -106,12 +107,6 @@ func NewHeap(idSize uint32) *Heap {
         objectCids: make([]ClassId, 1, 10000000),           // entry[0] not used
         objectSizes: make([]uint32, 1, 10000000),           // entry[0] not used
         objectMap: &ObjectMap{},
-
-        autoPrefixes: []string {
-            "java.lang.",
-            "java.util.",
-            "java.util.concurrent.",
-        },
 
         // Indexed by the "basic type" tag found in a CLASS_DUMP or PRIMITIVE_ARRAY_DUMP
         Jtypes: []*JType{
@@ -127,6 +122,12 @@ func NewHeap(idSize uint32) *Heap {
             &JType{"[S", false, 2, nil},
             &JType{"[I", false, 4, nil},
             &JType{"[J", false, 8, nil},
+        },
+
+        autoPrefixes: []string {
+            "java.lang.",
+            "java.util.",
+            "java.util.concurrent.",
         },
 
         skipNames: nil,
@@ -177,8 +178,8 @@ func (heap *Heap) ClassNameId(hid HeapId) HeapId {
 func (heap *Heap) AddClass(name string, hid HeapId, superHid HeapId, fieldNames []string, 
                             fieldTypes []*JType, staticRefs []HeapId) *ClassDef {
 
-    if hid > maxHeapId {
-        maxHeapId = hid
+    if hid > heap.maxHeapId {
+        heap.maxHeapId = hid
     }
 
     dname := Demangle(name)
@@ -186,6 +187,7 @@ func (heap *Heap) AddClass(name string, hid HeapId, superHid HeapId, fieldNames 
     if class != nil {
         log.Fatalf("Class named %s already defined\n", dname)
     }
+
     class = heap.classesByHid[hid]
     if class != nil {
         log.Fatalf("Class with HID %d already defined as %s\n", hid, class.Name)
@@ -228,11 +230,11 @@ func (heap *Heap) AddClass(name string, hid HeapId, superHid HeapId, fieldNames 
 //
 func (heap *Heap) AddInstance(hid HeapId, class *ClassDef, size uint32, offset uint64) ObjectId {
 
-    if hid > maxHeapId {
-        maxHeapId = hid
+    if hid > heap.maxHeapId {
+        heap.maxHeapId = hid
     }
-    if offset > maxOffset {
-        maxOffset = offset
+    if offset > heap.maxOffset {
+        heap.maxOffset = offset
     }
 
     heap.MaxObjectId++
@@ -262,7 +264,7 @@ func (heap *Heap) ClassNamed(name string) *ClassDef {
 // Post-process the heap by incorporating references scanned by the concurrent
 // segment readers, and resolve heap IDs to synthetic object IDs.
 //
-func (heap *Heap) PostProcess(sr *SegReader) {
+func (heap *Heap) PostProcess(sr *SegReader) { // TODO > 1 SegReader ??
 
     heap.objectMap.PostProcess()
 
@@ -272,7 +274,6 @@ func (heap *Heap) PostProcess(sr *SegReader) {
         log.Printf("%d references\n", len(from))
         // TODO: add static references to graph
         heap.graph = NewObjectIdGraph(from, to)
-        bags = nil // allow gc
     }
 
     heap.objectMap = nil // allow GC
@@ -308,6 +309,8 @@ func (heap *Heap) SizeOf(oid ObjectId) uint32 {
 
 // Add a (possibly wildcard) class name to the list of classes to be skipped
 // during graph searches.  Must then call ProcessSkips before the next search.
+//
+// TODO redo like trilby
 //
 func (heap *Heap) AddSkip(name string) {
     heap.skipNames = append(heap.skipNames, name)
@@ -445,14 +448,14 @@ func (heap *Heap) SkipIdOf(oid ObjectId) int {
 // is used for building placeholder objects and classes.
 //
 func (heap *Heap) fabricateHeapId() HeapId {
-    heap.maxHeapId += heap.IdSize
+    heap.maxHeapId += HeapId(heap.IdSize)
     return heap.maxHeapId
 }
 
 // Same idea as fabricateHeapId
 //
 func (heap *Heap) fabricateOffset() uint64 {
-    heap.maxOffset += heap.IdSize
+    heap.maxOffset += uint64(heap.IdSize)
     return heap.maxOffset
 }
 

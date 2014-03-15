@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2012, 2013 by Jonathan Ross (jonross@alum.mit.edu)
+    Copyright (c) 2013, 2014 by Jonathan Ross (jonross@alum.mit.edu)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -104,8 +104,9 @@ func NewClassDef(heap *Heap, name string, cid ClassId, hid HeapId, superHid Heap
         SuperHid: superHid,
         cooked: false,
         super: nil,
-        IsRoot: isRoot,
+        subclasses: nil,
         fields: fields,
+        IsRoot: isRoot,
         NumInstances: 0,
         NumBytes: 0,
         staticRefs: staticRefs,

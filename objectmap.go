@@ -35,6 +35,8 @@ const NumSlots = 1 << (MaxHeapBits - 16)
 // lower 36 bits of the HID (which handles heaps up to 64G.)  We then have 1<<20
 // maps, each of which maps the low 16 bits of the HID for the same high 20 bits.
 //
+// TODO background post-processing as we go
+//
 type ObjectMap [NumSlots]*omSlot
 
 type omSlot struct {

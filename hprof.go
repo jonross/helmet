@@ -329,7 +329,7 @@ func (hprof *HProfReader) readInstance(in *MappedSection) {
     in.Skip(4) // stack serial
     class := heap.HidClass(hprof.readId(in))
     length := in.GetUInt32()
-    oid := heap.AddInstance(hid, class, length + hprof.IdSize) // include object monitor
+    oid := heap.AddInstance(hid, class, length + hprof.IdSize, offset) // include object monitor
 
     if hprof.SegReader != nil {
         hprof.doInstance(offset, oid, class)
@@ -362,7 +362,7 @@ func (hprof *HProfReader) readArray(in *MappedSection, isObjects bool) {
     if isObjects {
         in.Demand(hprof.IdSize)
         class := heap.HidClass(hprof.readId(in))
-        oid := heap.AddInstance(hid, class, (count + 2) * hprof.IdSize) // include header size
+        oid := heap.AddInstance(hid, class, (count + 2) * hprof.IdSize, offset) // include header size
         if hprof.SegReader != nil {
             hprof.doInstance(offset, oid, class)
         }
@@ -370,7 +370,7 @@ func (hprof *HProfReader) readArray(in *MappedSection, isObjects bool) {
     } else {
         in.Demand(1)
         jtype :=  hprof.readJType(in)
-        heap.AddInstance(hid, jtype.Class, count * jtype.Size + 2 * hprof.IdSize) // include header size
+        heap.AddInstance(hid, jtype.Class, count * jtype.Size + 2 * hprof.IdSize, offset) // include header size
         in.Skip(count * jtype.Size)
     }
 
