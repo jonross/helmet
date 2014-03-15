@@ -24,6 +24,7 @@ package main
 
 import (
     "fmt"
+    // "log"
     . "github.com/jonross/peggy"
     "reflect"
 )
@@ -155,8 +156,9 @@ func newSettingsParser() *Parser {
     setting := Sequence("set", sizeSetting, size).Flatten(1).
         Handle(func(s *State) interface{} {
             sname := s.Get(2).String()
-            sval := int(s.Get(3).Int())
-            return SettingsAction{sname, sval}
+            sval := int64(s.Get(3).Int())
+            // log.Printf("Got %s = %d\n", sname, sval)
+            return Setting{Name: sname, Number: sval}
         })
 
     return setting

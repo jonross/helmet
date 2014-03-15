@@ -88,20 +88,16 @@ func (s *ParserSuite) TestQueries(c *C) {
 //
 func (s *ParserSuite) TestSettings(c *C) {
 
-    session := &Session{Settings: DefaultSettings()}
-    sval := func(name string) *Setting {
-        return session.Settings[name]
-    }
-
-    c.Check(1 << 20, Equals, sval("mingroupsize").IntValue)
+    session := NewSession(nil)
+    c.Check(session.Threshold.Number, Equals, int64(0))
 
     session.run("set mingroupsize 100k")
-    c.Check(100 * (1 << 10), Equals, sval("mingroupsize").IntValue)
+    c.Check(session.Threshold.Number, Equals, int64(100 * (1 << 10)))
 
     session.run("set mingroupsize 5m")
-    c.Check(5 * (1 << 20), Equals, sval("mingroupsize").IntValue)
+    c.Check(session.Threshold.Number, Equals, int64(5 * (1 << 20)))
 
     session.run("set mingroupsize 1g")
-    c.Check(1 << 30, Equals, sval("mingroupsize").IntValue)
+    c.Check(session.Threshold.Number, Equals, int64(1 << 30))
 }
 

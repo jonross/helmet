@@ -35,14 +35,30 @@ import (
 //
 type Session struct {
     *Heap
-    Settings map[string]*Setting
+    Threshold Setting
 }
 
 // Session settings, may be changed with the "set" command.
 //
 type Setting struct {
-    StringValue string
-    IntValue int
+    Name string
+    Number int64
+    Text string
+    Tag string
+}
+
+// Session constructor
+//
+func NewSession(heap *Heap) *Session {
+    return &Session{
+        Heap: heap,
+        Threshold: Setting{
+            Name: "threshold",
+            Number: 0,
+            Text: "0",
+            Tag: "",
+        },
+    }
 }
 
 // Start interactive console session.  Returns on console EOF or
@@ -87,18 +103,13 @@ func (session *Session) runSearch(query *Query) {
     histo.Print(os.Stdout)
 }
 
-// Create map of default session settings.
-//
-func DefaultSettings() map[string]*Setting {
-    settings := make(map[string]*Setting)
-    settings["mingroupsize"] = &Setting{"", 1 << 20}
-    return settings
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // A user action that can be executed in a session.  This is an interface type, with one struct
 // defined per action, rather than just a function pointer, so that it's easier to test.
+//
+// Note that a Setting, above, implements this interface, and simply sets the right value in
+// the Session or Heap.
 //
 type Action interface {
     Run(*Session)
@@ -117,8 +128,10 @@ type SettingsAction struct {
     Value int
 }
 
-func (action SettingsAction) Run(session *Session) {
-    session.Settings[action.Name].IntValue = action.Value
+func (setting Setting) Run(session *Session) {
+    if setting.Name == "mingroupsize" {
+        session.Threshold = setting
+    }
 }
 
 type ErrorAction struct {

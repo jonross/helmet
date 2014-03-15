@@ -69,10 +69,7 @@ func main() {
     }
 
     heap := ReadHeapDump(flag.Arg(0), options)
-    session := &Session{
-        Heap: heap,
-        Settings: DefaultSettings(),
-    }
+    session := NewSession(heap)
 
     if *doHisto {
         // TODO rewrite using session.run()
