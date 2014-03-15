@@ -89,15 +89,27 @@ func (s *ParserSuite) TestQueries(c *C) {
 func (s *ParserSuite) TestSettings(c *C) {
 
     session := NewSession(nil)
-    c.Check(session.Threshold.Number, Equals, int64(0))
 
-    session.run("set mingroupsize 100k")
-    c.Check(session.Threshold.Number, Equals, int64(100 * (1 << 10)))
+    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", 0, ""})
 
-    session.run("set mingroupsize 5m")
-    c.Check(session.Threshold.Number, Equals, int64(5 * (1 << 20)))
+    session.run("set threshold 100k bytes")
+    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(100 * (1 << 10)), ""})
 
-    session.run("set mingroupsize 1g")
-    c.Check(session.Threshold.Number, Equals, int64(1 << 30))
+    session.run("set threshold 5m bytes")
+    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(5 * (1 << 20)), ""})
+
+    session.run("set threshold 1g bytes")
+    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(1 << 30), ""})
+
+    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, ""})
+
+    session.run("set garbage")
+    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 1, ""})
+
+    session.run("set garbage only")
+    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 2, ""})
+
+    session.run("set nogarbage")
+    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, ""})
 }
 

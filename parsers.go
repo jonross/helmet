@@ -151,9 +151,20 @@ func newSettingsParser() *Parser {
             return value
         })
 
-    sizeSetting := OneOf("mingroupsize")
+    setGarbage := Sequence("set", OneOf("garbage", "nogarbage"), Optional("only")).
+        Handle(func(s *State) interface{} {
+            var value int64
+            if s.Get(2).String() == "nogarbage" {
+                value = 0
+            } else if ! s.Get(3).IsValid() {
+                value = 1
+            } else {
+                value = 2
+            }
+            return Setting{Name: "garbage", Number: value}
+        })
 
-    setting := Sequence("set", sizeSetting, size).Flatten(1).
+    setThreshold := Sequence("set", "threshold", size, OneOf("objects", "bytes", "retained")).
         Handle(func(s *State) interface{} {
             sname := s.Get(2).String()
             sval := int64(s.Get(3).Int())
@@ -161,7 +172,7 @@ func newSettingsParser() *Parser {
             return Setting{Name: sname, Number: sval}
         })
 
-    return setting
+    return OneOf(setThreshold, setGarbage)
 }
 
 // Validate search parameters; ensure all function params are defined

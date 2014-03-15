@@ -36,14 +36,15 @@ import (
 type Session struct {
     *Heap
     Threshold Setting
+    Garbage Setting
 }
 
 // Session settings, may be changed with the "set" command.
 //
 type Setting struct {
     Name string
-    Number int64
     Text string
+    Number int64
     Tag string
 }
 
@@ -55,7 +56,13 @@ func NewSession(heap *Heap) *Session {
         Threshold: Setting{
             Name: "threshold",
             Number: 0,
-            Text: "0",
+            Text: "",
+            Tag: "",
+        },
+        Garbage: Setting{
+            Name: "garbage",
+            Number: 0,
+            Text: "",
             Tag: "",
         },
     }
@@ -129,8 +136,9 @@ type SettingsAction struct {
 }
 
 func (setting Setting) Run(session *Session) {
-    if setting.Name == "mingroupsize" {
-        session.Threshold = setting
+    switch setting.Name {
+        case "garbage": session.Garbage = setting
+        case "threshold": session.Threshold = setting
     }
 }
 
