@@ -140,7 +140,7 @@ func NewParsers() *Parsers {
 func newSettingsParser() *Parser {
 
     number := OneOrMoreOf(AnyOf("0123456789")).Adjacent().As(Int)
-    size := Sequence(number, OneOf("k", "m", "g")).
+    size := Sequence(number, OneOf("k", "m", "g", "")).
         Handle(func (s *State) interface{} {
             value := s.Get(1).Int()
             switch s.Get(2).String() {
@@ -166,10 +166,10 @@ func newSettingsParser() *Parser {
 
     setThreshold := Sequence("set", "threshold", size, OneOf("objects", "bytes", "retained")).
         Handle(func(s *State) interface{} {
-            sname := s.Get(2).String()
-            sval := int64(s.Get(3).Int())
+            value := int64(s.Get(3).Int())
+            tag := s.Get(4).String()
             // log.Printf("Got %s = %d\n", sname, sval)
-            return Setting{Name: sname, Number: sval}
+            return Setting{Name: "threshold", Number: value, Tag: tag}
         })
 
     setNoThreshold := Sequence("set", "nothreshold").

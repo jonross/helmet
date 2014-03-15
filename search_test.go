@@ -41,7 +41,7 @@ func (s *SearchSuite) TestSearch(c *C) {
     parsers := NewParsers()
 
     // verify Thing counts
-    histo := heap.NewHisto()
+    histo := NewHisto(heap, nil)
     _, _, result := parsers.Command.Parse("histo x, x of com.myco.GenHeap$Thing x")
     SearchHeap(heap, result.(SearchAction).Query, histo)
     count, _ := histo.Counts(heap.ClassNamed("com.myco.GenHeap$Thing"))
@@ -55,7 +55,7 @@ func (s *SearchSuite) TestSearch(c *C) {
         },
         []int{0, 1},
     }
-    histo = heap.NewHisto()
+    histo = NewHisto(heap, nil)
     SearchHeap(heap, query, histo)
     histo.Print(os.Stdout)
 }

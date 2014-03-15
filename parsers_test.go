@@ -90,16 +90,16 @@ func (s *ParserSuite) TestSettings(c *C) {
 
     session := NewSession(nil)
 
-    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", 0, ""})
+    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", 1024, "bytes"})
 
     session.run("set threshold 100k bytes")
-    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(100 * (1 << 10)), ""})
+    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(100 * (1 << 10)), "bytes"})
 
-    session.run("set threshold 5m bytes")
-    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(5 * (1 << 20)), ""})
+    session.run("set threshold 5m objects")
+    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(5 * (1 << 20)), "objects"})
 
-    session.run("set threshold 1g bytes")
-    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(1 << 30), ""})
+    session.run("set threshold 1g retained")
+    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(1 << 30), "retained"})
 
     session.run("set nothreshold")
     c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(0), ""})

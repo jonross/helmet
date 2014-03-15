@@ -38,6 +38,8 @@ type Histo struct {
     counts []*ClassCount
     // indicates what objects we've seen
     known BitSet
+    // display filter
+    filter func(*ClassCount) bool
 }
 
 type ClassCount struct {
@@ -45,6 +47,32 @@ type ClassCount struct {
     count uint32
     nbytes uint64
     retained uint64 // TODO calculate
+}
+
+// Create a Histo with enough room for class / object indices from this heap.
+//
+func NewHisto(heap *Heap, threshold *Setting) *Histo {
+
+    var filter func(*ClassCount) bool
+    if threshold == nil {
+        filter = func(cc *ClassCount) bool { return true }
+    } else {
+        switch threshold.Tag {
+            case "objects":
+                filter = func(cc *ClassCount) bool { return int64(cc.count) >= threshold.Number }
+            case "bytes":
+                filter = func(cc *ClassCount) bool { return int64(cc.nbytes) >= threshold.Number }
+            case "retained":
+                filter = func(cc *ClassCount) bool { return int64(cc.retained) >= threshold.Number }
+        }
+    }
+
+    return &Histo{
+        heap: heap,
+        counts: make([]*ClassCount, heap.MaxClassId + 1), // 1-based
+        known: MakeBitSet(uint32(heap.MaxObjectId) + 1), // 1-based
+        filter: filter,
+    }
 }
 
 // Support sort weirdness. :-(
@@ -117,7 +145,9 @@ func (h *Histo) Print(out io.Writer) {
     totalBytes := uint64(0)
 
     for _, slot := range counts {
-        fmt.Fprintf(out, "%10d %10d %s\n", slot.count, slot.nbytes, string(slot.name))
+        if h.filter(slot) {
+            fmt.Fprintf(out, "%10d %10d %s\n", slot.count, slot.nbytes, string(slot.name))
+        }
         totalCount += slot.count
         totalBytes += slot.nbytes
     }

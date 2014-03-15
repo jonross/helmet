@@ -82,7 +82,7 @@ func main() {
                 }
             }
         */
-        histo := heap.NewHisto()
+        histo := NewHisto(heap, nil)
         for oid := ObjectId(1); oid <= heap.MaxObjectId; oid++ {
             class := heap.ClassOf(oid)
             histo.Add(oid, class, heap.SizeOf(oid))

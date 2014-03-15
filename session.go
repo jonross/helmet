@@ -55,9 +55,9 @@ func NewSession(heap *Heap) *Session {
         Heap: heap,
         Threshold: Setting{
             Name: "threshold",
-            Number: 0,
+            Number: 1024,
             Text: "",
-            Tag: "",
+            Tag: "bytes",
         },
         Garbage: Setting{
             Name: "garbage",
@@ -105,7 +105,7 @@ func (session *Session) run(command string) {
 // Execute a search (called from generated parser function.)
 //
 func (session *Session) runSearch(query *Query) {
-    histo := session.Heap.NewHisto()
+    histo := NewHisto(session.Heap, &session.Threshold)
     SearchHeap(session.Heap, query, histo)
     histo.Print(os.Stdout)
 }
