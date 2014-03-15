@@ -108,10 +108,10 @@ func NewParsers() *Parsers {
             return &QFun{fnName, fnArgs}
         })
 
-    search := Sequence("run", funcall, "from", path).
+    search := Sequence(funcall, "from", path).
         Handle(func (s *State) interface{} {
-            function := s.Get(2).Interface().(*QFun)
-            path := s.Get(4).Interface().([]*Step)
+            function := s.Get(1).Interface().(*QFun)
+            path := s.Get(3).Interface().([]*Step)
             query, err := validateSearch(function, path)
             if err != nil {
                 return ErrorAction{err}

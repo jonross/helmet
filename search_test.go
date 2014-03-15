@@ -42,7 +42,7 @@ func (s *SearchSuite) TestSearch(c *C) {
 
     // verify Thing counts
     histo := heap.NewHisto()
-    _, _, result := parsers.Command.Parse("run histo(x,x) from com.myco.GenHeap$Thing x")
+    _, _, result := parsers.Command.Parse("histo(x,x) from com.myco.GenHeap$Thing x")
     SearchHeap(heap, result.(SearchAction).Query, histo)
     count, _ := histo.Counts(heap.ClassNamed("com.myco.GenHeap$Thing"))
     c.Check(count, Equals, uint32(10000))
