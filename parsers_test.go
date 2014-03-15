@@ -101,6 +101,9 @@ func (s *ParserSuite) TestSettings(c *C) {
     session.run("set threshold 1g bytes")
     c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(1 << 30), ""})
 
+    session.run("set nothreshold")
+    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(0), ""})
+
     c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, ""})
 
     session.run("set garbage")

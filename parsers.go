@@ -172,7 +172,12 @@ func newSettingsParser() *Parser {
             return Setting{Name: sname, Number: sval}
         })
 
-    return OneOf(setThreshold, setGarbage)
+    setNoThreshold := Sequence("set", "nothreshold").
+        Handle(func(s *State) interface{} {
+            return Setting{Name: "threshold", Number: 0}
+        })
+
+    return OneOf(setThreshold, setNoThreshold, setGarbage)
 }
 
 // Validate search parameters; ensure all function params are defined
