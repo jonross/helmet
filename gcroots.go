@@ -49,8 +49,6 @@ func (gcr *GCRoots) LinkMasterRoot(bag *RefBag) {
 }
 
 func (gcr *GCRoots) FindLiveObjects(g *ObjectIdGraph, resolver func(HeapId) ObjectId, maxOid ObjectId) {
-    // todo add master root
-    log.Printf("find live %d objects\n", len(gcr.hids))
     gcr.live = make([]bool, maxOid + 1)
     gcr.live[1] = true
     for _, root := range gcr.hids {
