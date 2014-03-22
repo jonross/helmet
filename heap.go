@@ -275,6 +275,8 @@ func (heap *Heap) PostProcess(sr *SegReader) { // TODO > 1 SegReader ??
         heap.graph = NewObjectIdGraph(from, to)
     }
 
+    resolver := func(hid HeapId) ObjectId { return heap.objectMap.Get(hid) }
+    heap.FindLiveObjects(heap.graph, resolver, heap.MaxObjectId)
     heap.objectMap = nil // allow GC
 
     for _, def := range heap.classes[1:] {

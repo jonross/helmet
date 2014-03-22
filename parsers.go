@@ -153,15 +153,15 @@ func newSettingsParser() *Parser {
 
     setGarbage := Sequence("set", OneOf("garbage", "nogarbage"), Optional("only")).
         Handle(func(s *State) interface{} {
-            var value int64
+            var value string
             if s.Get(2).String() == "nogarbage" {
-                value = 0
+                value = "live"
             } else if ! s.Get(3).IsValid() {
-                value = 1
+                value = "all"
             } else {
-                value = 2
+                value = "nonlive"
             }
-            return Setting{Name: "garbage", Number: value}
+            return Setting{Name: "garbage", Tag: value}
         })
 
     setThreshold := Sequence("set", "threshold", size, OneOf("objects", "bytes", "retained")).

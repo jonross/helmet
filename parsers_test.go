@@ -104,15 +104,15 @@ func (s *ParserSuite) TestSettings(c *C) {
     session.run("set nothreshold")
     c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(0), ""})
 
-    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, ""})
+    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, "live"})
 
     session.run("set garbage")
-    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 1, ""})
+    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, "all"})
 
     session.run("set garbage only")
-    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 2, ""})
+    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, "nonlive"})
 
     session.run("set nogarbage")
-    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, ""})
+    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, "live"})
 }
 

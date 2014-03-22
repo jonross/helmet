@@ -65,27 +65,20 @@ func main() {
     }
 
     options := &Options{
-        NeedRefs: ! *doHisto,
+        NeedRefs: true,
     }
 
     heap := ReadHeapDump(flag.Arg(0), options)
     session := NewSession(heap)
 
     if *doHisto {
-        // TODO rewrite using session.run()
-        /*
-            val report = new ClassHistogram(heap)
-            for (id <- 1 to heap.maxId) {
-                if (heap.canSee(id)) {
-                    val classDef = heap.classes.getForObjectId(id)
-                    report.add(id, classDef)
-                }
-            }
-        */
+        // TODO rewrite using session.run() ?
         histo := NewHisto(heap, nil)
         for oid := ObjectId(1); oid <= heap.MaxObjectId; oid++ {
-            class := heap.ClassOf(oid)
-            histo.Add(oid, class, heap.SizeOf(oid))
+            if heap.CanSee(oid) {
+                class := heap.ClassOf(oid)
+                histo.Add(oid, class, heap.SizeOf(oid))
+            }
         }
         histo.Print(os.Stdout)
     } else {

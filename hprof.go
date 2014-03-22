@@ -303,8 +303,7 @@ func (hprof *HProfReader) readClassDump(in *MappedSection) {
 func (hprof *HProfReader) readGCRoot(in *MappedSection, kind string, skip uint32) {
     in.Demand(hprof.IdSize + skip)
     hid := hprof.readId(in)
-    // TODO verify gc roots are in heap
-    hprof.Heap.AddRoot(hid)
+    hprof.AddRoot(hid)
     in.Skip(skip)
 }
 

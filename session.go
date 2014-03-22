@@ -63,7 +63,7 @@ func NewSession(heap *Heap) *Session {
             Name: "garbage",
             Number: 0,
             Text: "",
-            Tag: "",
+            Tag: "live",
         },
     }
 }
@@ -137,8 +137,13 @@ type SettingsAction struct {
 
 func (setting Setting) Run(session *Session) {
     switch setting.Name {
-        case "garbage": session.Garbage = setting
-        case "threshold": session.Threshold = setting
+        case "garbage": 
+            session.Garbage = setting
+            if session.Heap != nil {
+                session.Heap.SetVisible(setting.Tag)
+            }
+        case "threshold": 
+            session.Threshold = setting
     }
 }
 
