@@ -42,11 +42,19 @@ func (gcr *GCRoots) AddRoot(hid HeapId) {
     gcr.hids = append(gcr.hids, hid)
 }
 
+func (gcr *GCRoots) LinkMasterRoot(bag *RefBag) {
+    for _, root := range gcr.hids {
+        bag.AddReference(1, root)
+    }
+}
+
 func (gcr *GCRoots) FindLiveObjects(g *ObjectIdGraph, resolver func(HeapId) ObjectId, maxOid ObjectId) {
     // todo add master root
     log.Printf("find live %d objects\n", len(gcr.hids))
     gcr.live = make([]bool, maxOid + 1)
+    gcr.live[1] = true
     for _, root := range gcr.hids {
+        // log.Printf("Find roots from oid=%d hid=%x\n", resolver(root), root)
         gcr.findFrom(g, resolver(root))
     }
     // Correct counts for master root

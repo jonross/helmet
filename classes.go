@@ -58,7 +58,7 @@ type ClassDef struct {
     // # of bytes in all instances
     NumBytes uint64
     // heap ids of static referees
-    staticRefs []HeapId
+    StaticRefs []HeapId
     // size of instance layout, including superclasses; returned by layoutSize()
     span uint32
     // offsets of reference fields, including superclases; returned by refOffsets()
@@ -109,7 +109,7 @@ func NewClassDef(heap *Heap, name string, cid ClassId, hid HeapId, superHid Heap
         IsRoot: isRoot,
         NumInstances: 0,
         NumBytes: 0,
-        staticRefs: staticRefs,
+        StaticRefs: staticRefs,
         span: 0,
         refs: nil,
         Skip: false,

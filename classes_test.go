@@ -38,13 +38,13 @@ func (s *CTSuite) TestClassMatching(c *C) {
         h.AddClass(name, HeapId(hid), HeapId(superHid), []string{}, []*JType{}, []HeapId{})
     }
 
-    add("java.lang.Object", 1, 0)
-    add("java.lang.String", 2, 1)
-    add("java.lang.Number", 3, 1)
-    add("java.lang.Integer", 4, 3)
-    add("java.lang.Long", 5, 3)
-    add("java.util.List", 6, 1)
-    add("java.util.Map", 7, 1)
+    add("java.lang.Object", 2, 0)
+    add("java.lang.String", 3, 2)
+    add("java.lang.Number", 4, 2)
+    add("java.lang.Integer", 5, 4)
+    add("java.lang.Long", 6, 4)
+    add("java.util.List", 7, 2)
+    add("java.util.Map", 8, 2)
 
     for _, class := range h.classesByHid {
         class.Cook()
@@ -53,7 +53,7 @@ func (s *CTSuite) TestClassMatching(c *C) {
     bits := MakeBitSet(10)
 
     verify := func(set []int) {
-        for hid := 1; hid <= 7; hid++ {
+        for hid := 2; hid <= 8; hid++ {
             if HasInt(set, hid) && !bits.Has(uint32(hid)) {
                 c.Errorf("Expected HID %d to be present", hid)
             } else if ! HasInt(set, hid) && bits.Has(uint32(hid)) {
@@ -65,12 +65,12 @@ func (s *CTSuite) TestClassMatching(c *C) {
     verify([]int{})
 
     h.MatchClasses(bits, "java.lang.Object", true)
-    verify([]int{1, 2, 3, 4, 5, 6, 7})
+    verify([]int{2, 3, 4, 5, 6, 7, 8})
 
     h.MatchClasses(bits, "java.lang.Number", false)
-    verify([]int{1, 2, 6, 7})
+    verify([]int{2, 3, 7, 8})
 
     h.MatchClasses(bits, "java.util.*", false)
-    verify([]int{1, 2})
+    verify([]int{2, 3})
 }
 

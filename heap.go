@@ -87,7 +87,8 @@ type Heap struct {
 }
 
 func NewHeap(idSize uint32) *Heap {
-    return &Heap{
+
+    heap := &Heap{
 
         IdSize: idSize,
         strings: make(map[HeapId]string, 100000),           // good enough
@@ -133,6 +134,11 @@ func NewHeap(idSize uint32) *Heap {
         skipIds: nil,
         graph: nil,
     }
+
+    root := heap.AddClass("root", 1, 1, []string{}, []*JType{}, []HeapId{})
+    heap.AddInstance(1, root, 0, 0)
+
+    return heap
 }
 
 // Add a UTF8 string record (class names, fields etc; not user-defined strings.)
@@ -265,10 +271,60 @@ func (heap *Heap) ClassNamed(name string) *ClassDef {
 //
 func (heap *Heap) PostProcess(sr *SegReader) { // TODO > 1 SegReader ??
 
+    /*
+        val fakes = new mutable.HashMap[Long,(Int,Long)]
+        val superHid = classes.getByName("java.lang.Class").heapId
+        val noFields = new Array[Java.Type](0)
+        val noNames = new Array[String](0)
+        
+        for (i <- 0 until staticRefs.size by 2) {
+            val fromClass = staticRefs.get(i)
+            val toObject = staticRefs.get(i+1)
+            val (fakeId, fakeHid) = fakes.getOrElseUpdate(fromClass, {
+                val classDef = classes.getByHeapId(fromClass)
+                val fakeName = classDef.name + ".class"
+                val fakeDef = addClassDef(fakeName, fabricateHeapId(), superHid, noFields, noNames)
+                val fakeHid = fabricateHeapId()
+                val fakeId = addInstance(fakeHid, fakeDef.heapId, fabricateOffset(), 0)
+                (fakeId, fakeHid)
+            })
+            addReference(fakeId, toObject)
+            addGCRoot(fakeHid, "loaded class")
+        }
+    */
+
+    // Fabricate a class object to hold static references for each class.  This
+    // is done after the heap read is complete so we can guarantee unique HIDs.
+
+    jlo := heap.ClassNamed("java.lang.Object")
+    bag := &RefBag{}
+
+    for _, class := range heap.classes[1:] {
+
+        fakeName := class.Name + ".class"
+        fakeClassHid := heap.fabricateHeapId()
+        fakeInstanceHid := heap.fabricateHeapId()
+        fakeOffset := heap.fabricateOffset()
+        fakeClass := heap.AddClass(fakeName, fakeClassHid, jlo.Hid, []string{}, []*JType{}, []HeapId{})
+        fakeOid := heap.AddInstance(fakeInstanceHid, fakeClass, 0, fakeOffset)
+        // log.Printf("Assign fake oid %d hid %x for %s\n", fakeOid, fakeInstanceHid, fakeName)
+
+        // Make each class a GC root and link its static references
+
+        heap.AddRoot(fakeInstanceHid)
+        for _, hid := range class.StaticRefs {
+            if hid != 0 {
+                bag.AddReference(fakeOid, hid)
+            }
+        }
+    }
+
     heap.objectMap.PostProcess()
+    heap.LinkMasterRoot(bag)
 
     if sr != nil {
         bags := sr.close()
+        bags = append(bags, bag)
         from, to := MergeBags(bags, func(hid HeapId) ObjectId {return heap.objectMap.Get(hid)})
         log.Printf("%d references\n", len(from))
         // TODO: add static references to graph

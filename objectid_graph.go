@@ -93,6 +93,8 @@ func NewObjectIdGraph(from []ObjectId, to[]ObjectId) *ObjectIdGraph {
 //
 func NewObjectIdGraph1(maxNode ObjectId, from []ObjectId, to []ObjectId) * ObjectIdGraph {
 
+    // log.Printf("maxNode is %d\n", maxNode)
+
     var fromCounts []int
     var toCounts []int
 
