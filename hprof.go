@@ -212,8 +212,6 @@ func (hprof *HProfReader) readSegment(in *MappedSection, length uint32) int {
 //
 func (hprof *HProfReader) readClassDump(in *MappedSection) {
 
-    // Header
-
     // header is
     //
     // class heap id    HeapId
@@ -250,7 +248,7 @@ func (hprof *HProfReader) readClassDump(in *MappedSection) {
 
     in.Demand(2)
     numConstants := in.GetUInt16()
-    in.Demand(11 * uint32(numConstants))
+    in.Demand(11 * uint32(numConstants)) // worst case, all are longs
 
     for i := 0; i < int(numConstants); i++ {
         in.Skip(2)
@@ -262,7 +260,7 @@ func (hprof *HProfReader) readClassDump(in *MappedSection) {
 
     in.Demand(2)
     numStatics := in.GetUInt16()
-    in.Demand(11 * uint32(numStatics))
+    in.Demand(11 * uint32(numStatics)) // worst case, all are longs
     staticRefs := []HeapId{}
 
     for i := 0; i < int(numStatics); i++ {
@@ -281,10 +279,11 @@ func (hprof *HProfReader) readClassDump(in *MappedSection) {
     // Instance fields
 
     in.Demand(2)
-    numFields := in.GetUInt16()
+    numFields := uint32(in.GetUInt16())
     fieldNames := make([]string, numFields, numFields)
     fieldTypes := make([]*JType, numFields, numFields)
 
+    in.Demand(numFields * (1 + hprof.IdSize))
     for i := 0; i < int(numFields); i++ {
         fieldName := heap.StringWithId(hprof.readId(in))
         if fieldName == "" {
@@ -305,7 +304,7 @@ func (hprof *HProfReader) readGCRoot(in *MappedSection, kind string, skip uint32
     in.Demand(hprof.IdSize + skip)
     hid := hprof.readId(in)
     // TODO verify gc roots are in heap
-    hprof.Heap.gcRoots = append(hprof.Heap.gcRoots, hid)
+    hprof.Heap.AddRoot(hid)
     in.Skip(skip)
 }
 

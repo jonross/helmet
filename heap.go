@@ -47,10 +47,10 @@ type ObjectId uint32
 type Heap struct {
     // native identifier size
     IdSize uint32
+    // gc root data
+    GCRoots
     // static strings from UTF8 records
     strings map[HeapId]string
-    // heap IDs of GC roots
-    gcRoots []HeapId
     // highest class id assigned, 1-based
     MaxClassId uint32
     // highest heap ID encountered
@@ -91,7 +91,6 @@ func NewHeap(idSize uint32) *Heap {
 
         IdSize: idSize,
         strings: make(map[HeapId]string, 100000),           // good enough
-        gcRoots: make([]HeapId, 0, 10000),                  // good enough
 
         MaxClassId: 0,
         maxHeapId: 0,

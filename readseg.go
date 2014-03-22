@@ -130,6 +130,7 @@ func (worker *SegWorker) process() {
         start := worker.offsets[0]
         in := worker.MappedFile.MapAt(start)
         for i := 0; i < worker.count; i++ {
+            // TODO demand first?
             in.Skip(uint32(worker.offsets[i] - in.Offset()))
             tag := in.GetByte()
             switch tag {
@@ -199,12 +200,12 @@ func (worker *SegWorker) readArray(in *MappedSection, oid ObjectId, class *Class
     // stack serial     uint32      (ignored)
     // # elements       uint32
 
+    in.Demand(worker.IdSize + 8)
     in.Skip(worker.IdSize + 4)
-    in.Demand(4)
     count := in.GetUInt32()
 
+    in.Demand(count * (1 + worker.IdSize))
     in.Skip(worker.IdSize) // already know class
-    in.Demand(count * worker.IdSize)
     for i := uint32(0); i < count; i++ {
         toHid := worker.readId(in)
         if toHid != 0 {
@@ -212,5 +213,6 @@ func (worker *SegWorker) readArray(in *MappedSection, oid ObjectId, class *Class
             worker.refs.AddReference(oid, toHid)
         }
     }
-}
 
+    // TODO - have added instance??
+}
