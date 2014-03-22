@@ -28,10 +28,10 @@ Size=$Small
 run_genheap() {
     javac com/myco/GenHeap.java
     rm -f genheap.hprof
-    java -Xmx10g -verbose:gc -XX:+UseConcMarkSweepGC com.myco.GenHeap $Size 2>$tmp &
+    java -verbose:gc -XX:+UseConcMarkSweepGC com.myco.GenHeap $Size 2>$tmp &
     pid=$!
     while true; do
-        if grep ready $tmp; then
+        if grep "Ready to dump" $tmp; then
             jmap -dump:format=b,file=genheap.hprof $pid
             kill $pid
             return
