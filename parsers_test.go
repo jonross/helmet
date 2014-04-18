@@ -90,29 +90,29 @@ func (s *ParserSuite) TestSettings(c *C) {
 
     session := NewSession(nil)
 
-    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", 1024, "bytes"})
+    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", 1024, false, "bytes"})
 
     session.run("set threshold 100k bytes")
-    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(100 * (1 << 10)), "bytes"})
+    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(100 * (1 << 10)), false, "bytes"})
 
     session.run("set threshold 5m objects")
-    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(5 * (1 << 20)), "objects"})
+    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(5 * (1 << 20)), false, "objects"})
 
     session.run("set threshold 1g retained")
-    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(1 << 30), "retained"})
+    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(1 << 30), false, "retained"})
 
     session.run("set nothreshold")
-    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(0), ""})
+    c.Check(session.Threshold, DeepEquals, Setting{"threshold", "", int64(0), false, ""})
 
-    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, "live"})
+    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, false, "live"})
 
     session.run("set garbage")
-    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, "all"})
+    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, false, "all"})
 
     session.run("set garbage only")
-    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, "nonlive"})
+    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, false, "nonlive"})
 
     session.run("set nogarbage")
-    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, "live"})
+    c.Check(session.Garbage, DeepEquals, Setting{"garbage", "", 0, false, "live"})
 }
 

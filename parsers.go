@@ -122,8 +122,8 @@ func NewParsers() *Parsers {
         })
 
     setting := newSettingsParser()
-
-    command := OneOf(search, setting)
+    skip := newSkipParser(className)
+    command := OneOf(search, setting, skip)
 
     return &Parsers{
         ClassName: className,
@@ -178,6 +178,20 @@ func newSettingsParser() *Parser {
         })
 
     return OneOf(setThreshold, setNoThreshold, setGarbage)
+}
+
+// Create sub-parser for "skip" commands.
+//
+func newSkipParser(className *Parser) *Parser {
+    return Sequence(OneOf("skip", "noskip"), Optional(OneOf(className, "all"))).
+        Handle(func(s *State) interface{} {
+            skip := "skip" == s.Get(1).String()
+            if s.Get(2).IsValid() {
+                return Setting{Name: "skip", Flag: skip, Tag: s.Get(2).String()}
+            } else {
+                return Setting{Name: "skip", Flag: skip, Tag: "(list)"}
+            }
+        })
 }
 
 // Validate search parameters; ensure all function params are defined

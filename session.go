@@ -45,6 +45,7 @@ type Setting struct {
     Name string
     Text string
     Number int64
+    Flag bool
     Tag string
 }
 
@@ -130,11 +131,6 @@ func (action SearchAction) Run(session *Session) {
     session.runSearch(action.Query)
 }
 
-type SettingsAction struct {
-    Name string
-    Value int
-}
-
 func (setting Setting) Run(session *Session) {
     switch setting.Name {
         case "garbage": 
@@ -144,6 +140,8 @@ func (setting Setting) Run(session *Session) {
             }
         case "threshold": 
             session.Threshold = setting
+        case "skip":
+            session.Heap.DoSkip(setting.Tag, setting.Flag)
     }
 }
 

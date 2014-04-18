@@ -80,8 +80,6 @@ type Heap struct {
     autoPrefixes []string
     // classes to skip during graph searches
     skipNames []string
-    // skip ID of objects with classes matched by skipNames
-    skipIds []int
     // object graph
     graph *ObjectIdGraph
 }
@@ -131,7 +129,6 @@ func NewHeap(idSize uint32) *Heap {
         },
 
         skipNames: nil,
-        skipIds: nil,
         graph: nil,
     }
 
@@ -365,13 +362,48 @@ func (heap *Heap) SizeOf(oid ObjectId) uint32 {
 }
 
 // Add a (possibly wildcard) class name to the list of classes to be skipped
-// during graph searches.  Must then call ProcessSkips before the next search.
+// (or not) during graph searches.
 //
-// TODO redo like trilby
-//
-func (heap *Heap) AddSkip(name string) {
-    heap.skipNames = append(heap.skipNames, name)
-    heap.skipIds = nil
+func (heap *Heap) DoSkip(name string, skip bool) {
+
+    if name == "none" {
+        if skip {
+            // "skip none" clears skip state
+            heap.skipNames = nil
+            for _, class := range heap.classes[1:] {
+                class.Skip = false
+            }
+            return
+        } else {
+            // turn "noskip none" into "skip all"
+            name = "all"
+            skip = true
+        }
+    }
+
+    numMatching := 0
+
+    if name == "all" {
+        for _, class := range heap.classes[1:] {
+            class.Skip = skip
+            numMatching += 1
+        }
+    } else {
+        for _, name := range heap.skipNames {
+            heap.WithClassesMatching(name, func(class *ClassDef) {
+                class.Skip = skip
+                numMatching += 1
+            })
+        }
+    }
+
+    if numMatching == 0 {
+        fmt.Errorf("No classes match %s\n", name)
+    } else if skip {
+        heap.skipNames = append(heap.skipNames, "+ " + name)
+    } else {
+        heap.skipNames = append(heap.skipNames, "- " + name)
+    }
 }
 
 // Return a bitset with class IDs of classes matching a type wildcard turned on.
@@ -452,43 +484,6 @@ func markClass(class *ClassDef, bits BitSet, include bool) {
     for _, c := range class.subclasses {
         markClass(c, bits, include)
     }
-}
-
-// Assign a unique ID to every object whose class is skipped.  This allows the
-// graph search to maintain a piece of information for skipped objects only
-// rather than also having an empty slot for non-skipped objects.
-//
-func (heap *Heap) ProcessSkips() {
-
-    for _, class := range heap.classes[1:] {
-        class.Skip = false
-    }
-
-    numSkips := uint32(0)
-    for _, name := range heap.skipNames {
-        heap.WithClassesMatching(name, func(class *ClassDef) {
-            class.Skip = true
-            numSkips += class.NumInstances
-        })
-    }
-
-    if heap.skipIds == nil {
-        heap.skipIds = make([]int, heap.MaxObjectId + 1)
-    }
-
-    skipId := 1
-    for oid := ObjectId(1); oid <= heap.MaxObjectId; oid++ {
-        if heap.ClassOf(oid).Skip {
-            heap.skipIds[oid] = skipId
-            skipId++
-        } else {
-            heap.skipIds[oid] = 0
-        }
-    }
-}
-
-func (heap *Heap) SkipIdOf(oid ObjectId) int {
-    return heap.skipIds[oid]
 }
 
 // Return a fabricated heap ID higher than the highest one already seen.  This
