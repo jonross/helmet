@@ -28,27 +28,27 @@ import (
 
 type GCRoots struct {
     // Heap IDs of gc roots
-    hids []HeapId
+    hids []Hid
     // Which ones are live, as indexed by object ID
     // TODO make smaller
     live []bool
     // How many are live
     numLive int
     // Function to check liveness based on "set garbage" value
-    CanSee func(ObjectId) bool
+    CanSee func(Oid) bool
 }
 
-func (gcr *GCRoots) AddRoot(hid HeapId) {
+func (gcr *GCRoots) AddRoot(hid Hid) {
     gcr.hids = append(gcr.hids, hid)
 }
 
-func (gcr *GCRoots) LinkMasterRoot(bag *RefBag) {
+func (gcr *GCRoots) LinkMasterRoot(bag *References) {
     for _, root := range gcr.hids {
-        bag.AddReference(1, root)
+        bag.Add(1, root)
     }
 }
 
-func (gcr *GCRoots) FindLiveObjects(g *ObjectIdGraph, resolver func(HeapId) ObjectId, maxOid ObjectId) {
+func (gcr *GCRoots) FindLiveObjects(g *OidGraph, resolver func(Hid) Oid, maxOid Oid) {
     gcr.live = make([]bool, maxOid + 1)
     gcr.live[1] = true
     for _, root := range gcr.hids {
@@ -60,7 +60,7 @@ func (gcr *GCRoots) FindLiveObjects(g *ObjectIdGraph, resolver func(HeapId) Obje
     gcr.SetVisible("live")
 }
 
-func (gcr *GCRoots) findFrom(g *ObjectIdGraph, oid ObjectId) {
+func (gcr *GCRoots) findFrom(g *OidGraph, oid Oid) {
     if oid != 0 && ! gcr.live[oid] {
         gcr.live[oid] = true
         gcr.numLive++
@@ -73,11 +73,11 @@ func (gcr *GCRoots) findFrom(g *ObjectIdGraph, oid ObjectId) {
 func (gcr *GCRoots) SetVisible(tag string) {
     switch tag {
         case "all":
-            gcr.CanSee = func(oid ObjectId) bool { return true }
+            gcr.CanSee = func(oid Oid) bool { return true }
         case "live":
-            gcr.CanSee = func(oid ObjectId) bool { return gcr.live[oid] }
+            gcr.CanSee = func(oid Oid) bool { return gcr.live[oid] }
         case "nonlive":
-            gcr.CanSee = func(oid ObjectId) bool { return ! gcr.live[oid] }
+            gcr.CanSee = func(oid Oid) bool { return ! gcr.live[oid] }
         default:
             panic("Bad visibility tag: " + tag)
     }

@@ -30,55 +30,42 @@ import (
 // the object ID of the source but not that of the target, because we don't 
 // build the HID->OID mapping until after all the object IDs are known.
 //
-type RefBag struct {
-    from [][]ObjectId
-    to [][]HeapId
+type References struct {
+    from []Oid
+    to []Hid
 }
 
-// Add a reference.
-//
-func (refs *RefBag) AddReference(from ObjectId, to HeapId) {
-    if refs.from == nil {
-        refs.from = [][]ObjectId{make([]ObjectId, 0, 100000)}
-        refs.to = [][]HeapId{make([]HeapId, 0, 100000)}
-    }
-    refs.from = AppendOid(refs.from, from)
-    refs.to = AppendHid(refs.to, to)
+func (refs *References) Add(from Oid, to Hid) {
+    refs.from = append(refs.from, from)
+    refs.to = append(refs.to, to)
 }
 
-// Combine and resolve a list of RefBags into separate referrer / referee arrays,
+// Combine and resolve a list of Referencess into separate referrer / referee arrays,
 // using a resolution function to turn referee heap IDs into object IDs.  The bags
 // should be discarded afterward to save memory.
 //
-func MergeBags(bags []*RefBag, resolver func(HeapId) ObjectId) ([]ObjectId, []ObjectId){
+func MergeReferences(arefs []*References, resolver func(Hid) Oid) ([]Oid, []Oid){
 
     count := 0
-    for _, bag := range bags {
-        for _, list := range bag.from {
-            count += len(list)
-        }
+    for _, refs := range arefs {
+        count += len(refs.from)
     }
 
     var wg sync.WaitGroup
-    newFrom := make([]ObjectId, count)
-    newTo := make([]ObjectId, count)
+    newFrom := make([]Oid, count)
+    newTo := make([]Oid, count)
     offset := 0
 
-    // Crank a separate goroutine for each sublist in each bag, giving it a partition
-    // in newFrom/newTo to write reference data.
-
-    for _, bag := range bags {
-        wg.Add(len(bag.from))
-        for i, _ := range bag.from {
-            go func(from []ObjectId, to []HeapId, offset int) {
-                for j, oid := range from {
-                    newFrom[offset+j] = oid
-                    newTo[offset+j] = resolver(to[j])
-                }
-                wg.Done()
-            }(bag.from[i], bag.to[i], offset)
-            offset += len(bag.from[i])
-        }
+    for _, refs := range arefs {
+        wg.Add(1)
+        go func(from []Oid, to []Hid, base int) {
+            for i, oid := range from {
+                newFrom[base+i] = oid
+                newTo[base+i] = resolver(to[i])
+            }
+            wg.Done()
+        }(refs.from, refs.to, offset)
+        offset += len(refs.from)
     }
 
     wg.Wait()

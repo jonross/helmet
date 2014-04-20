@@ -70,7 +70,7 @@ func NewHisto(heap *Heap, threshold *Setting) *Histo {
     return &Histo{
         heap: heap,
         counts: make([]*ClassCount, heap.MaxClassId + 1), // 1-based
-        known: MakeBitSet(uint32(heap.MaxObjectId) + 1), // 1-based
+        known: MakeBitSet(uint32(heap.MaxOid) + 1), // 1-based
         filter: filter,
     }
 }
@@ -93,7 +93,7 @@ func (cc classCounts) Less(i, j int) bool {
 
 // Add an object if not already known.
 //
-func (h *Histo) Add(oid ObjectId, class *ClassDef, size uint32) {
+func (h *Histo) Add(oid Oid, class *Class, size uint32) {
     id := uint32(oid)
     if h.known.Has(id) {
         return
@@ -110,7 +110,7 @@ func (h *Histo) Add(oid ObjectId, class *ClassDef, size uint32) {
 
 // Return count, nbytes for a class.
 //
-func (h *Histo) Counts(class *ClassDef) (uint32, uint64) {
+func (h *Histo) Counts(class *Class) (uint32, uint64) {
     slot := h.counts[class.Cid]
     if slot != nil {
         return slot.count, slot.nbytes
@@ -121,7 +121,7 @@ func (h *Histo) Counts(class *ClassDef) (uint32, uint64) {
 
 // Implement Collector.Collect
 //
-func (h *Histo) Collect(oids []ObjectId) {
+func (h *Histo) Collect(oids []Oid) {
     group := oids[0]
     member := oids[1]
     // TODO check known first

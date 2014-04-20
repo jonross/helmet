@@ -32,20 +32,20 @@ var _ = Suite(&OMSuite{})
 
 func (s *OMSuite) TestObjectMap(c *C) {
 
-    var hids [1000000]HeapId
+    var hids [1000000]Hid
     var om ObjectMap
 
-    lastHid := HeapId(0)
+    lastHid := Hid(0)
     for i, _ := range hids {
-        lastHid += 1 + HeapId(rand.Int63n(1000))
-        om.Add(lastHid, ObjectId(i + 1))
+        lastHid += 1 + Hid(rand.Int63n(1000))
+        om.Add(lastHid, Oid(i + 1))
         hids[i] = lastHid
     }
 
     om.PostProcess()
     for i, hid := range hids {
         oid := om.Get(hid)
-        if oid != ObjectId(i + 1) {
+        if oid != Oid(i + 1) {
             c.Errorf("Expected %d -> %d but was %d\n", hid, i + 1, oid)
         }
     }

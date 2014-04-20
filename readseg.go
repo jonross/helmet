@@ -50,15 +50,15 @@ type SegWorker struct {
     // parent reader
     *SegReader
     // object IDs to read
-    oids []ObjectId
+    oids []Oid
     // what are their class defs
-    classes []*ClassDef
+    classes []*Class
     // where are they found in the heap dump
     offsets []uint64
     // how many to process
     count int
     // references found
-    refs RefBag
+    refs References
 }
 
 // Create a segment reader with one worker per CPU.
@@ -81,8 +81,8 @@ func NewSegReader(hr *HProfReader) *SegReader {
             reader.workers[i] = &SegWorker{
                 id: i + 1,
                 SegReader: reader,
-                oids: make([]ObjectId, reader.batchSize),
-                classes: make([]*ClassDef, reader.batchSize),
+                oids: make([]Oid, reader.batchSize),
+                classes: make([]*Class, reader.batchSize),
                 offsets: make([]uint64, reader.batchSize),
                 count: 0,
             }
@@ -99,7 +99,7 @@ func NewSegReader(hr *HProfReader) *SegReader {
 // Add a location to be processed to the active segment worker.  If its queue
 // is full, tell it to proceed() and ready the next worker.
 //
-func (reader *SegReader) doInstance(offset uint64, oid ObjectId, class *ClassDef) {
+func (reader *SegReader) doInstance(offset uint64, oid Oid, class *Class) {
     worker := reader.active
     i := worker.count
     worker.oids[i] = oid
@@ -150,9 +150,9 @@ func (worker *SegWorker) process() {
 // Shut down all segment workers, allowing them to be garbage collected, by launching
 // the current active one (even if empty) then draining the "available" channel.
 //
-func (reader *SegReader) close() []*RefBag {
+func (reader *SegReader) close() []*References {
     reader.proceed(false)
-    bags := []*RefBag{}
+    bags := []*References{}
     for i := 0; i < runtime.NumCPU(); i++ {
         worker := <-reader.avail
         bags = append(bags, &worker.refs)
@@ -163,13 +163,13 @@ func (reader *SegReader) close() []*RefBag {
 // The busy side of Heap.readInstance; record the instance data + references
 // to other objects.
 //
-func (worker *SegWorker) readInstance(in *MappedSection, oid ObjectId, class *ClassDef) {
+func (worker *SegWorker) readInstance(in *MappedSection, oid Oid, class *Class) {
 
     // header is
     //
-    // instance id      HeapId      (already known)
+    // instance id      Hid      (already known)
     // stack serial     uint32      (ignored)
-    // class id         HeapId      (already known)
+    // class id         Hid      (already known)
     // length           uint32
 
     in.Skip(4 + 2 * worker.IdSize)
@@ -183,7 +183,7 @@ func (worker *SegWorker) readInstance(in *MappedSection, oid ObjectId, class *Cl
         toHid := worker.readId(in)
         if toHid != 0 {
             // log.Printf("in readInst %d cid=%d a %s -> %x\n", oid, class.Cid, class.Name, toHid)
-            worker.refs.AddReference(oid, toHid)
+            worker.refs.Add(oid, toHid)
         }
         cursor += skip + worker.IdSize
     }
@@ -192,11 +192,11 @@ func (worker *SegWorker) readInstance(in *MappedSection, oid ObjectId, class *Cl
 // The busy side of Heap.readArray; record the instance data + references
 // to other objects.
 //
-func (worker *SegWorker) readArray(in *MappedSection, oid ObjectId, class *ClassDef) {
+func (worker *SegWorker) readArray(in *MappedSection, oid Oid, class *Class) {
 
     // header is
     //
-    // instance id      HeapId      (already known)
+    // instance id      Hid      (already known)
     // stack serial     uint32      (ignored)
     // # elements       uint32
 
@@ -210,7 +210,7 @@ func (worker *SegWorker) readArray(in *MappedSection, oid ObjectId, class *Class
         toHid := worker.readId(in)
         if toHid != 0 {
             // log.Printf("in readArray %d cid=%d a %s -> %x\n", oid, class.Cid, class.Name, toHid)
-            worker.refs.AddReference(oid, toHid)
+            worker.refs.Add(oid, toHid)
         }
     }
 

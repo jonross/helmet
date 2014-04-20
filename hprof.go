@@ -159,7 +159,7 @@ func (hprof *HProfReader) read(in *MappedSection, options *Options) *Heap {
     runtime.GC()
 
     log.Printf("%d records, %d UTF8\n", numRecords, numStrings)
-    log.Printf("%d objects\n", heap.MaxObjectId)
+    log.Printf("%d objects\n", heap.MaxOid)
 
     return heap
 }
@@ -214,14 +214,14 @@ func (hprof *HProfReader) readClassDump(in *MappedSection) {
 
     // header is
     //
-    // class heap id    HeapId
+    // class heap id    Hid
     // stack serial     uint32      (ignored)
-    // superclass id    HeapId
-    // classloader id   HeapId      (ignored)
-    // signer id        HeapId      (ignored)
-    // prot domain id   HeapId      (ignored)
-    // reserved 1       HeapId      (ignored)
-    // reserved 2       HeapId      (ignored)
+    // superclass id    Hid
+    // classloader id   Hid      (ignored)
+    // signer id        Hid      (ignored)
+    // prot domain id   Hid      (ignored)
+    // reserved 1       Hid      (ignored)
+    // reserved 2       Hid      (ignored)
     // instance size    uint32      TODO: use this?
 
     in.Demand(7 * hprof.IdSize + 8)
@@ -261,7 +261,7 @@ func (hprof *HProfReader) readClassDump(in *MappedSection) {
     in.Demand(2)
     numStatics := in.GetUInt16()
     in.Demand(11 * uint32(numStatics)) // worst case, all are longs
-    staticRefs := []HeapId{}
+    staticRefs := []Hid{}
 
     for i := 0; i < int(numStatics); i++ {
         in.Skip(hprof.IdSize) // field name ID
@@ -317,9 +317,9 @@ func (hprof *HProfReader) readInstance(in *MappedSection) {
 
     // header is
     //
-    // instance id      HeapId
+    // instance id      Hid
     // stack serial     uint32      (ignored)
-    // class id         HeapId
+    // class id         Hid
     // length           uint32
 
     in.Demand(8 + 2 * hprof.IdSize)
@@ -346,7 +346,7 @@ func (hprof *HProfReader) readArray(in *MappedSection, isObjects bool) {
 
     // header is
     //
-    // instance id      HeapId
+    // instance id      Hid
     // stack serial     uint32      (ignored)
     // # elements       uint32
 
@@ -376,11 +376,11 @@ func (hprof *HProfReader) readArray(in *MappedSection, isObjects bool) {
 
 // Read a native ID from heap data.
 //
-func (hprof *HProfReader) readId(in *MappedSection) HeapId {
+func (hprof *HProfReader) readId(in *MappedSection) Hid {
     if (hprof.longIds) {
-        return HeapId(in.GetUInt64())
+        return Hid(in.GetUInt64())
     }
-    return HeapId(in.GetUInt32())
+    return Hid(in.GetUInt32())
 }
 
 // Read a "Basic Type" ID from heap data and return the JType

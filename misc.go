@@ -157,11 +157,11 @@ func Append32(aa [][]uint32, val uint32) [][]uint32 {
 
 // See Append32()
 //
-func AppendOid(aa [][]ObjectId, val ObjectId) [][]ObjectId {
+func AppendOid(aa [][]Oid, val Oid) [][]Oid {
     slot := len(aa) - 1
     a := aa[slot]
     if len(a) == cap(a) {
-        a = make([]ObjectId, 0, len(a))
+        a = make([]Oid, 0, len(a))
         aa = append(aa, a)
         slot += 1
     }
@@ -172,11 +172,11 @@ func AppendOid(aa [][]ObjectId, val ObjectId) [][]ObjectId {
 
 // See Append32()
 //
-func AppendHid(aa [][]HeapId, val HeapId) [][]HeapId {
+func AppendHid(aa [][]Hid, val Hid) [][]Hid {
     slot := len(aa) - 1
     a := aa[slot]
     if len(a) == cap(a) {
-        a = make([]HeapId, 0, len(a))
+        a = make([]Hid, 0, len(a))
         aa = append(aa, a)
         slot += 1
     }

@@ -29,17 +29,17 @@ import (
     . "launchpad.net/gocheck"
 )
 
-type ObjectIdGraphSuite struct{} 
-var _ = Suite(&ObjectIdGraphSuite{})
+type OidGraphSuite struct{} 
+var _ = Suite(&OidGraphSuite{})
 
-func (s *ObjectIdGraphSuite) TestEdges(c *C) {
-    verifyObjectIdGraph(c, makeObjectIdGraph(ObjectId_edges_2), ObjectId_edges_2)
+func (s *OidGraphSuite) TestEdges(c *C) {
+    verifyOidGraph(c, makeOidGraph(Oid_edges_2), Oid_edges_2)
 }
 
 // Verify a graph against its raw edge data.  //
-func verifyObjectIdGraph(c *C, g *ObjectIdGraph, edges[][]int) {
+func verifyOidGraph(c *C, g *OidGraph, edges[][]int) {
     for _, list := range edges {
-        node := ObjectId(list[0])
+        node := Oid(list[0])
         var actual []int
         for n, pos := g.OutEdges(node); pos != 0; n, pos = g.NextOutEdge(pos) {
             actual = append(actual, int(n))
@@ -76,20 +76,20 @@ func verifyObjectIdGraph(c *C, g *ObjectIdGraph, edges[][]int) {
 
 // Generate a sample graph.
 //
-func makeObjectIdGraph(edges [][]int) *ObjectIdGraph {
-    var src, dst []ObjectId
+func makeOidGraph(edges [][]int) *OidGraph {
+    var src, dst []Oid
     for _, list := range edges {
         for _, node := range list[1:] {
-            src = append(src, ObjectId(list[0]))
-            dst = append(dst, ObjectId(node))
+            src = append(src, Oid(list[0]))
+            dst = append(dst, Oid(node))
         }
     }
-    return NewObjectIdGraph(src, dst)
+    return NewOidGraph(src, dst)
 }
 
-// Sample edge data for use with makeObjectIdGraph
+// Sample edge data for use with makeOidGraph
 //
-var ObjectId_edges_2 = [][]int {
+var Oid_edges_2 = [][]int {
     []int{1, 2, 19, 23},
     []int{2, 3, 6},
     []int{3, 5},

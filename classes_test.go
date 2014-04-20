@@ -35,7 +35,7 @@ func (s *CTSuite) TestClassMatching(c *C) {
     h := NewHeap(8)
 
     add := func(name string, hid int, superHid int) {
-        h.AddClass(name, HeapId(hid), HeapId(superHid), []string{}, []*JType{}, []HeapId{})
+        h.AddClass(name, Hid(hid), Hid(superHid), []string{}, []*JType{}, []Hid{})
     }
 
     add("java.lang.Object", 2, 0)

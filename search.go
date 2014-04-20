@@ -50,7 +50,7 @@ type Query struct {
 // during a search
 //
 type Collector interface {
-    Collect([]ObjectId)
+    Collect([]Oid)
 }
 
 // Maps finder foci to collector arg list
@@ -59,7 +59,7 @@ type CollectorArgs struct {
     Collector
     indices []int
     foci []*Finder
-    funargs []ObjectId
+    funargs []Oid
 }
 
 // Holds search state around one Step
@@ -76,11 +76,11 @@ type Finder struct {
     // does this step skip skipped classes
     skip bool
     // current object id at this Finder
-    focus ObjectId
+    focus Oid
     // common arg-passing info
     *CollectorArgs
     // object IDs to be considered
-    stack []ObjectId
+    stack []Oid
     // next finder in query, or nil at end
     next *Finder
     // what objects have been touched on each pass
@@ -92,7 +92,7 @@ func SearchHeap(heap *Heap, query *Query, coll Collector) {
     // Build finders & chain them
 
     finders := make([]*Finder, len(query.steps))
-    touched := NewUndoableBitSet(uint32(heap.MaxObjectId + 1))
+    touched := NewUndoableBitSet(uint32(heap.MaxOid + 1))
 
     for i, step := range query.steps {
         finders[i] = &Finder{
@@ -102,7 +102,7 @@ func SearchHeap(heap *Heap, query *Query, coll Collector) {
             classes: heap.CidsMatching(query.steps[i].types),
             skip: step.skip && i > 0,
             focus: 0,
-            stack: make([]ObjectId, 0, 10000),
+            stack: make([]Oid, 0, 10000),
             next: nil,
             // TODO make this more compact
             touched: touched,
@@ -119,7 +119,7 @@ func SearchHeap(heap *Heap, query *Query, coll Collector) {
         Collector: coll,
         indices: query.argIndices,
         foci: make([]*Finder, len(query.argIndices)),
-        funargs: make([]ObjectId, len(query.argIndices)),
+        funargs: make([]Oid, len(query.argIndices)),
     }
 
     for i, index := range query.argIndices {
@@ -134,7 +134,7 @@ func SearchHeap(heap *Heap, query *Query, coll Collector) {
     // from graph, not heap, because objects near the end may not have references.
 
     start := finders[0]
-    for oid := ObjectId(1); oid <= heap.graph.MaxNode; oid++ {
+    for oid := Oid(1); oid <= heap.graph.MaxNode; oid++ {
         class := heap.ClassOf(oid)
         if start.classes.Has(uint32(class.Cid)) {
             start.check(oid)
@@ -147,7 +147,7 @@ func SearchHeap(heap *Heap, query *Query, coll Collector) {
 // check as a result of skipping the object.  This uses an inline stack to DFS because
 // I'd written it that way in Scala to keep from blowing the JVM stack.
 //
-func (finder *Finder) check(oid ObjectId) {
+func (finder *Finder) check(oid Oid) {
     finder.touched.Set(uint32(oid))
     finder.doCheck(oid)
     for {
@@ -163,7 +163,7 @@ func (finder *Finder) check(oid ObjectId) {
 
 // Check one object against one finder in the chain.
 //
-func (finder *Finder) doCheck(oid ObjectId) {
+func (finder *Finder) doCheck(oid Oid) {
     heap := finder.Heap
     g := heap.graph
     finder.focus = oid
@@ -211,20 +211,4 @@ func (finder *Finder) doCheck(oid ObjectId) {
         }
     }
 }
-
-/*
-// TODO: do wildcard matching differently
-val isWild = target.types endsWith ".*"
-val typePrefix = target.types.substring(0, target.types.length - 1)
-
-if (baseClass != null)
-    matchingClasses.put(baseClass.classId, 1)
-
-for (classDef <- heap.classes getAll)
-    if (baseClass != null && (classDef hasSuper baseClass))
-        matchingClasses.put(classDef.classId, 1)
-    else if (isWild && classDef.name.startsWith(typePrefix))
-        matchingClasses.put(classDef.classId, 1)
-println(target.types + " matches " + matchingClasses.size + " classes")
-*/
 

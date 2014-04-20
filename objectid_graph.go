@@ -33,40 +33,40 @@ import (
 // An immutable adjacency-list graph representation with all lists merged to a
 // single slice for minimal mark/sweep overhead.
 //
-type ObjectIdGraph struct {
+type OidGraph struct {
     // highest node id
-    MaxNode ObjectId
+    MaxNode Oid
     // out edges per node
-    outs *ObjectIdEdgeSet
+    outs *OidEdgeSet
     // in edges per node
-    ins *ObjectIdEdgeSet
+    ins *OidEdgeSet
 }
 
 // In/out edges use an identical structure, just with the edge direction reversed.
 // TODO: data compression on offsets; use bitset for isStart
 //
-type ObjectIdEdgeSet struct {
+type OidEdgeSet struct {
     // Merged edge list of all adjacent nodes
-    edges []ObjectId
+    edges []Oid
     // Offset of each node's edges in merged list, or 0 if none
     offsets []int
     // Indicates which offset values are the start of a node's edge list
     isStart []bool
 }
 
-// Use this form to create a ObjectIdGraph if only the source and destination nodes are
-// known for each edge.  Finds the maximum node ID then hands off to NewObjectIdGraph1.
+// Use this form to create a OidGraph if only the source and destination nodes are
+// known for each edge.  Finds the maximum node ID then hands off to NewOidGraph1.
 //
-func NewObjectIdGraph(from []ObjectId, to[]ObjectId) *ObjectIdGraph {
+func NewOidGraph(from []Oid, to[]Oid) *OidGraph {
 
-    maxFrom := ObjectId(0)
-    maxTo := ObjectId(0)
+    maxFrom := Oid(0)
+    maxTo := Oid(0)
 
     var waiter sync.WaitGroup
     waiter.Add(2)
 
-    maxFinder := func(nodes []ObjectId, result *ObjectId) {
-        max := ObjectId(0)
+    maxFinder := func(nodes []Oid, result *Oid) {
+        max := Oid(0)
         for _, node := range nodes {
             if node > max {
                 max = node
@@ -84,16 +84,14 @@ func NewObjectIdGraph(from []ObjectId, to[]ObjectId) *ObjectIdGraph {
         maxFrom = maxTo
     }
 
-    return NewObjectIdGraph1(maxFrom, from, to)
+    return NewOidGraph1(maxFrom, from, to)
 }
 
-// Use this form to create a ObjectIdGraph if the source and destination nodes + the
+// Use this form to create a OidGraph if the source and destination nodes + the
 // maximum node ID are known.  Calculates the edge counts per node then hands
-// off to NewObjectIdGraph2
+// off to NewOidGraph2
 //
-func NewObjectIdGraph1(maxNode ObjectId, from []ObjectId, to []ObjectId) * ObjectIdGraph {
-
-    // log.Printf("maxNode is %d\n", maxNode)
+func NewOidGraph1(maxNode Oid, from []Oid, to []Oid) * OidGraph {
 
     var fromCounts []int
     var toCounts []int
@@ -101,7 +99,7 @@ func NewObjectIdGraph1(maxNode ObjectId, from []ObjectId, to []ObjectId) * Objec
     var waiter sync.WaitGroup
     waiter.Add(2)
 
-    edgeCounter := func(nodes []ObjectId, result *[]int) {
+    edgeCounter := func(nodes []Oid, result *[]int) {
         counts := make([]int, maxNode + 1)
         for _, node := range nodes {
             counts[node]++
@@ -114,25 +112,25 @@ func NewObjectIdGraph1(maxNode ObjectId, from []ObjectId, to []ObjectId) * Objec
     go edgeCounter(to, &toCounts)
     waiter.Wait()
 
-    return NewObjectIdGraph2(maxNode, from, to, fromCounts, toCounts)
+    return NewOidGraph2(maxNode, from, to, fromCounts, toCounts)
 }
 
-// Use this form to create a ObjectIdGraph if the source and destination nodes + the
+// Use this form to create a OidGraph if the source and destination nodes + the
 // edge counts from each source & destination are known.  Modifies count arrays.
 //
-func NewObjectIdGraph2(maxNode ObjectId, from, to []ObjectId, fromCounts, toCounts []int) *ObjectIdGraph {
+func NewOidGraph2(maxNode Oid, from, to []Oid, fromCounts, toCounts []int) *OidGraph {
 
-    g := &ObjectIdGraph{MaxNode: maxNode}
+    g := &OidGraph{MaxNode: maxNode}
     var waiter sync.WaitGroup
     waiter.Add(2)
 
     go func() {
-        g.outs = newObjectIdEdgeSet(from, to, fromCounts)
+        g.outs = newOidEdgeSet(from, to, fromCounts)
         waiter.Done()
     }()
 
     go func() {
-        g.ins = newObjectIdEdgeSet(to, from, toCounts)
+        g.ins = newOidEdgeSet(to, from, toCounts)
         waiter.Done()
     }()
 
@@ -146,11 +144,11 @@ func NewObjectIdGraph2(maxNode ObjectId, from, to []ObjectId, fromCounts, toCoun
 //         ...
 //     }
 //
-func (g *ObjectIdGraph) OutEdges(node ObjectId) (ObjectId, int) {
+func (g *OidGraph) OutEdges(node Oid) (Oid, int) {
     return g.outs.walk(node)
 }
 
-func (g *ObjectIdGraph) NextOutEdge(pos int) (ObjectId, int) {
+func (g *OidGraph) NextOutEdge(pos int) (Oid, int) {
     return g.outs.next(pos)
 }
 
@@ -160,20 +158,20 @@ func (g *ObjectIdGraph) NextOutEdge(pos int) (ObjectId, int) {
 //         ...
 //     }
 //
-func (g *ObjectIdGraph) InEdges(node ObjectId) (ObjectId, int) {
+func (g *OidGraph) InEdges(node Oid) (Oid, int) {
     return g.ins.walk(node)
 }
 
-func (g *ObjectIdGraph) NextInEdge(pos int) (ObjectId, int) {
+func (g *OidGraph) NextInEdge(pos int) (Oid, int) {
     return g.ins.next(pos)
 }
 
 // Create an edge set.  Overwrites the count array as a side effect.
 //
-func newObjectIdEdgeSet(from []ObjectId, to []ObjectId, counts []int) *ObjectIdEdgeSet {
+func newOidEdgeSet(from []Oid, to []Oid, counts []int) *OidEdgeSet {
 
-    e := &ObjectIdEdgeSet {
-        edges: make([]ObjectId, len(from) + 1), // 1 entry per edge, index 0 not used
+    e := &OidEdgeSet {
+        edges: make([]Oid, len(from) + 1), // 1 entry per edge, index 0 not used
         isStart: make([]bool, len(from) + 2), // matches edges but also need a terminator entry
         offsets: make([]int, len(counts)), // 1 entry per node
     }
@@ -205,7 +203,7 @@ func newObjectIdEdgeSet(from []ObjectId, to []ObjectId, counts []int) *ObjectIdE
 // Start walking an edge set from the specified node.  If position == 0
 // there are no edges from this node.
 //
-func (e *ObjectIdEdgeSet) walk(node ObjectId) (ObjectId, int) {
+func (e *OidEdgeSet) walk(node Oid) (Oid, int) {
     offset := e.offsets[node]
     if offset == 0 {
         return 0, 0
@@ -220,7 +218,7 @@ func (e *ObjectIdEdgeSet) walk(node ObjectId) (ObjectId, int) {
 // Continue walking an edge set from the previous position.  Returns
 // position == 0 if there are no more edges.
 //
-func (e *ObjectIdEdgeSet) next(offset int) (ObjectId, int) {
+func (e *OidEdgeSet) next(offset int) (Oid, int) {
     offset++
     if e.isStart[offset] {
         return 0, 0
@@ -234,7 +232,7 @@ func (e *ObjectIdEdgeSet) next(offset int) (ObjectId, int) {
 
 // Debug output.
 //
-func logObjectIdDegrees(inOut string, maxNode ObjectId, counts []int) {
+func logOidDegrees(inOut string, maxNode Oid, counts []int) {
     log.Printf("Frequency of %s-degree across %d nodes\n", inOut, maxNode)
     stats := [11]int{}
     for i, _ := range counts {

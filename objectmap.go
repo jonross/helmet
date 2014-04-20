@@ -28,10 +28,10 @@ import (
 )
 
 const MaxHeapBits = 36
-const MaxHeapId = HeapId(1 << MaxHeapBits - 1)
+const MaxHid = Hid(1 << MaxHeapBits - 1)
 const NumSlots = 1 << (MaxHeapBits - 16)
 
-// Maps native heap ids to ObjectIds.  To save space we pay attention to only the
+// Maps native heap ids to Oids.  To save space we pay attention to only the
 // lower 36 bits of the HID (which handles heaps up to 64G.)  We then have 1<<20
 // maps, each of which maps the low 16 bits of the HID for the same high 20 bits.
 //
@@ -43,13 +43,13 @@ type omSlot struct {
     // Start by just saving the heap ids
     heapIds []uint16
     // and object ids
-    objectIds []ObjectId
+    objectIds []Oid
     // and later we'll put them in a map
-    mapping map[uint16]ObjectId
+    mapping map[uint16]Oid
 }
 
-func (m *ObjectMap) Add(hid HeapId, oid ObjectId) {
-    if hid > MaxHeapId {
+func (m *ObjectMap) Add(hid Hid, oid Oid) {
+    if hid > MaxHid {
         log.Fatalf("Heap ID %x too big\n", hid)
     }
     index := hid >> 16
@@ -68,7 +68,7 @@ func (m *ObjectMap) PostProcess() {
         if slot != nil {
             wg.Add(1)
             go func(slot *omSlot) {
-                slot.mapping = make(map[uint16]ObjectId, len(slot.heapIds))
+                slot.mapping = make(map[uint16]Oid, len(slot.heapIds))
                 for i, hid := range slot.heapIds {
                     slot.mapping[hid] = slot.objectIds[i]
                 }
@@ -82,7 +82,7 @@ func (m *ObjectMap) PostProcess() {
     wg.Wait()
 }
 
-func (m *ObjectMap) Get(hid HeapId) ObjectId {
+func (m *ObjectMap) Get(hid Hid) Oid {
     slot := m[hid >> 16]
     if slot != nil {
         return slot.mapping[uint16(hid & 0xFFFF)]

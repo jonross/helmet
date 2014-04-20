@@ -32,7 +32,7 @@ type ClassId uint32
 
 // One of these per class we find in the heap dump
 //
-type ClassDef struct {
+type Class struct {
     // ptr back to parent heap
     *Heap
     // demangled name
@@ -40,15 +40,15 @@ type ClassDef struct {
     // assigned unique id
     Cid ClassId
     // native id from heap
-    Hid HeapId
+    Hid Hid
     // native id of superclass
-    SuperHid HeapId
+    SuperHid Hid
     // have we completed post-processing
     cooked bool
     // superclass def, after classdef is cooked
-    super *ClassDef
+    super *Class
     // direct subclasses, after classdef is cooked
-    subclasses []*ClassDef
+    subclasses []*Class
     // instance member information
     fields []*Field
     // is this def for java.lang.Object
@@ -58,7 +58,7 @@ type ClassDef struct {
     // # of bytes in all instances
     NumBytes uint64
     // heap ids of static referees
-    StaticRefs []HeapId
+    StaticRefs []Hid
     // size of instance layout, including superclasses; returned by layoutSize()
     span uint32
     // offsets of reference fields, including superclases; returned by refOffsets()
@@ -88,15 +88,15 @@ type JType struct {
     // size in bytes
     Size uint32
     // assigned when found in heap
-    Class *ClassDef
+    Class *Class
 }
 
-// Create a ClassDef given the minimal required information.
+// Create a Class given the minimal required information.
 //
-func NewClassDef(heap *Heap, name string, cid ClassId, hid HeapId, superHid HeapId,
-                    fields []*Field, staticRefs []HeapId) *ClassDef {
+func NewClass(heap *Heap, name string, cid ClassId, hid Hid, superHid Hid,
+                    fields []*Field, staticRefs []Hid) *Class {
     isRoot := name == "java.lang.Object" || name == "root"
-    return &ClassDef{
+    return &Class{
         Heap: heap,
         Name: name,
         Cid: cid,
@@ -116,40 +116,40 @@ func NewClassDef(heap *Heap, name string, cid ClassId, hid HeapId, superHid Heap
     }
 }
 
-// Return this class's superclass ClassDef.
+// Return this class's superclass Class.
 // Cooks the class as a side effect.
 //
 // Note this cannot be called until all classes have been read from the heap, since class
 // layouts may appear before the layouts of their superclasses. :-(
 //
-func (class *ClassDef) Super() *ClassDef {
+func (class *Class) Super() *Class {
     return class.Cook().super
 }
 
 // Is this class a subclass of another class.
 // Cooks the class as a side effect.
 //
-func (class *ClassDef) IsSubclassOf(super *ClassDef) bool {
+func (class *Class) IsSubclassOf(super *Class) bool {
     return !class.IsRoot && (class.SuperHid == super.Hid || class.Super().IsSubclassOf(super))
 }
 
 // Return offsets of reference fields, including superclasses.
 // Cooks the class as a side effect.
 //
-func (class *ClassDef) RefOffsets() []uint32 {
+func (class *Class) RefOffsets() []uint32 {
     return class.Cook().refs
 }
 
 // Return size of the instance layout in bytes, including superclasses.
 // Cooks the class as a side effect.
 //
-func (class *ClassDef) Span() uint32 {
+func (class *Class) Span() uint32 {
     return class.Cook().span
 }
 
 // Update instance count & size
 //
-func (class *ClassDef) AddObject(size uint32) {
+func (class *Class) AddObject(size uint32) {
     class.NumInstances += 1
     class.NumBytes += uint64(size)
 }
@@ -158,7 +158,7 @@ func (class *ClassDef) AddObject(size uint32) {
 // after all superclass defs have been identified.  Resolves the superclass pointer
 // and computes reference offsets.  Cooks all superclasses as a side effect.
 //
-func (class *ClassDef) Cook() *ClassDef {
+func (class *Class) Cook() *Class {
 
     if class.cooked {
         return class
